@@ -1,0 +1,956 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Puff Tracker</title>
+<meta name="robots" content="noindex,nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Puff Tracker">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='16' height='32' fill='%2314764a'/%3E%3Crect x='16' width='16' height='32' fill='%232554c7'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Hanken+Grotesk:wght@400..700&display=swap">
+<style>
+/* Layout: a full-width split counter (green THC | blue nicotine) with device chips that appear on hover,
+   then limits and device equivalents, then a day-by-day history list and a bottom Timeline button. */
+:root {
+  color-scheme: light;
+  --bg: #f1f4f3;
+  --surface: #ffffff;
+  --fg: #14201b;
+  --muted: #566861;
+  --line: #d8dfdb;
+  --track: #e2e8e5;
+  --thc: #14764a;
+  --nic: #2554c7;
+  --thc-bar: #14764a;
+  --nic-bar: #2554c7;
+  --warn: #a64b06;
+  --focus: #14201b;
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body: "Hanken Grotesk", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1311;
+    --surface: #151d1a;
+    --fg: #e8efeb;
+    --muted: #93a79d;
+    --line: #25322d;
+    --track: #25322d;
+    --thc-bar: #35c488;
+    --nic-bar: #6f95ff;
+    --warn: #f0a15c;
+    --focus: #e8efeb;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1311;
+  --surface: #151d1a;
+  --fg: #e8efeb;
+  --muted: #93a79d;
+  --line: #25322d;
+  --track: #25322d;
+  --thc-bar: #35c488;
+  --nic-bar: #6f95ff;
+  --warn: #f0a15c;
+  --focus: #e8efeb;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: max(14px, env(safe-area-inset-top, 0px)) max(48px, env(safe-area-inset-bottom, 0px));
+}
+.wrap { max-width: 980px; margin: 0 auto; }
+.top { display: flex; justify-content: space-between; align-items: baseline; gap: 4px 16px; flex-wrap: wrap; margin-bottom: 12px; }
+h1 { font-family: var(--display); font-size: 1.3rem; font-weight: 700; letter-spacing: -0.01em; margin: 0; }
+h2 { font-family: var(--display); font-size: 1.05rem; font-weight: 700; margin: 0 0 12px; }
+.today-date { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* ---------- sign in ---------- */
+.auth { min-height: 90vh; display: flex; align-items: center; justify-content: center; }
+.auth-card { width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 6px; }
+.auth-card label { font-weight: 600; font-size: 0.92rem; margin-top: 10px; }
+.auth-card input { width: 100%; max-width: none; }
+.auth-card .tl-btn { margin-top: 16px; align-self: stretch; }
+.auth-card .tl-btn:disabled { opacity: 0.6; cursor: default; }
+.err { color: var(--warn); font-weight: 600; min-height: 1.4em; margin: 6px 0 0; }
+
+/* ---------- split counter ---------- */
+.split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-radius: 20px;
+  overflow: hidden;
+  min-height: clamp(400px, 62vh, 580px);
+}
+.side { position: relative; display: flex; color: #fff; isolation: isolate; min-width: 0; }
+.side.thc { background: var(--thc); }
+.side.nic { background: var(--nic); }
+.tap {
+  all: unset;
+  box-sizing: border-box;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 16px 84px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  transition: background-color 0.12s;
+}
+.tap:active { background: rgba(0, 0, 0, 0.14); }
+.tap:focus-visible { outline: 3px solid #fff; outline-offset: -8px; }
+.name { font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.82rem; }
+.mid { display: flex; flex-direction: column; gap: 6px; }
+.count {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: clamp(4.2rem, 17vw, 8.5rem);
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  display: inline-block;
+  transform-origin: left bottom;
+}
+.count.bump { animation: bump 0.18s ease-out; }
+@keyframes bump { 0% { transform: scale(1); } 40% { transform: scale(1.07); } 100% { transform: scale(1); } }
+.unit { font-weight: 600; font-size: 1rem; }
+.eq { font-size: 0.9rem; opacity: 0.9; font-variant-numeric: tabular-nums; }
+.bot { display: flex; flex-direction: column; gap: 8px; }
+.meter { display: block; height: 8px; border-radius: 99px; background: rgba(255, 255, 255, 0.28); overflow: hidden; }
+.meter i { display: block; height: 100%; width: 0; background: #fff; transition: width 0.25s; }
+.meter.over i { background: repeating-linear-gradient(135deg, #fff 0 6px, rgba(255, 255, 255, 0.4) 6px 12px); }
+.meter.none { visibility: hidden; }
+.status { font-weight: 700; font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+.hint { font-size: 0.82rem; opacity: 0.85; }
+.hov { display: none; }
+@media (hover: hover) { .hov { display: inline; } }
+
+.undo {
+  position: absolute; top: 12px; right: 12px; z-index: 2;
+  min-width: 44px; height: 36px; padding: 0 10px;
+  border: 1.5px solid rgba(255, 255, 255, 0.6); border-radius: 999px;
+  background: rgba(0, 0, 0, 0.18); color: #fff;
+  font: 700 0.85rem var(--body); cursor: pointer;
+}
+.undo:hover { background: rgba(0, 0, 0, 0.32); }
+.modes {
+  position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 2;
+  display: flex; gap: 6px;
+  opacity: 0; transform: translateY(8px); pointer-events: none;
+  transition: opacity 0.16s, transform 0.16s;
+}
+.side:hover .modes, .side:focus-within .modes { opacity: 1; transform: none; pointer-events: auto; }
+@media (hover: none) { .modes { opacity: 1; transform: none; pointer-events: auto; } }
+.chip {
+  flex: 1; min-width: 0; padding: 11px 4px;
+  border: 1.5px solid rgba(255, 255, 255, 0.65); border-radius: 999px;
+  background: rgba(0, 0, 0, 0.2); color: #fff;
+  font: 700 0.85rem var(--body); cursor: pointer;
+}
+.chip:hover { background: rgba(0, 0, 0, 0.34); }
+.chip[aria-pressed="true"] { background: #fff; }
+.thc .chip[aria-pressed="true"] { color: var(--thc); }
+.nic .chip[aria-pressed="true"] { color: var(--nic); }
+.undo:focus-visible, .chip:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+
+/* ---------- settings ---------- */
+.panel { margin-top: 28px; }
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px 20px; }
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field > label, .field > .lab { font-weight: 600; font-size: 0.92rem; display: flex; align-items: center; gap: 8px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.dot.thc { background: var(--thc-bar); }
+.dot.nic { background: var(--nic-bar); }
+input[type="number"], input[type="email"], input[type="password"] {
+  width: 100%; max-width: 220px; padding: 10px 12px;
+  border: 1.5px solid var(--line); border-radius: 10px;
+  background: var(--surface); color: var(--fg);
+  font: 600 1rem var(--body); font-variant-numeric: tabular-nums;
+}
+input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+.eqrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+.eqrow input { width: 90px; }
+.note { color: var(--muted); font-size: 0.86rem; margin: 10px 0 0; max-width: 65ch; }
+
+/* ---------- history ---------- */
+.hist { border-top: 1px solid var(--line); }
+.row {
+  display: grid; grid-template-columns: 9rem 1fr 1fr; gap: 10px 22px;
+  padding: 14px 0; border-bottom: 1px solid var(--line); align-items: start;
+}
+.row .d { font-weight: 700; }
+.row .d small { display: block; color: var(--muted); font-weight: 500; }
+.cell { min-width: 0; }
+.cell .lab { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.num { font-family: var(--display); font-weight: 700; font-size: 1.6rem; line-height: 1; font-variant-numeric: tabular-nums; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.num small { font: 500 0.82rem var(--body); color: var(--muted); }
+.tag { font: 700 0.76rem var(--body); color: var(--warn); }
+.cell.thc { --c: var(--thc-bar); }
+.cell.nic { --c: var(--nic-bar); }
+.bar { position: relative; height: 6px; border-radius: 99px; background: var(--track); margin: 10px 0 7px; }
+.bar i { position: absolute; inset: 0 auto 0 0; border-radius: 99px; background: var(--c); }
+.bar i.over { background: repeating-linear-gradient(135deg, var(--c) 0 5px, transparent 5px 9px); outline: 1.5px solid var(--c); outline-offset: -1.5px; }
+.bar b { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--fg); transform: translateX(-1px); }
+.sub { color: var(--muted); font-size: 0.85rem; overflow-wrap: anywhere; }
+.empty { padding: 18px 0; color: var(--muted); max-width: 65ch; }
+.morebtn {
+  margin-top: 14px; padding: 10px 16px; border: 1.5px solid var(--line); border-radius: 10px;
+  background: var(--surface); color: var(--fg); font: 600 0.92rem var(--body); cursor: pointer;
+}
+.morebtn:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.foot { margin-top: 28px; color: var(--muted); font-size: 0.84rem; }
+.linkbtn { all: unset; cursor: pointer; text-decoration: underline; color: var(--fg); font-weight: 600; }
+.linkbtn:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+/* ---------- timeline ---------- */
+.dock {
+  position: sticky; bottom: 0; z-index: 20;
+  display: flex; justify-content: center;
+  padding-block: 14px 10px; margin-top: 16px;
+  background: linear-gradient(to top, var(--bg) 62%, transparent);
+}
+.tl-btn {
+  padding: 14px 30px; border: 0; border-radius: 999px;
+  background: var(--fg); color: var(--bg);
+  font: 700 0.98rem var(--body); cursor: pointer; font-variant-numeric: tabular-nums;
+}
+.tl-btn:focus-visible, .tl-x:focus-visible, .tl-f:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.sheet-wrap {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; align-items: flex-end; justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px);
+}
+.sheet {
+  width: 100%; max-width: 640px; max-height: 84vh; min-height: 0;
+  display: flex; flex-direction: column;
+  background: var(--surface); color: var(--fg);
+  border-radius: 20px 20px 0 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.sheet-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 16px 6px; }
+.sheet-head h2 { margin: 0; }
+.tl-x { min-width: 44px; height: 40px; padding: 0 14px; border: 1.5px solid var(--line); border-radius: 999px; background: transparent; color: var(--fg); font: 600 0.9rem var(--body); cursor: pointer; }
+.tl-filters { display: flex; gap: 8px; flex-wrap: wrap; padding: 6px 16px 10px; }
+.tl-f { padding: 8px 14px; border: 1.5px solid var(--line); border-radius: 999px; background: transparent; color: var(--fg); font: 600 0.88rem var(--body); cursor: pointer; }
+.tl-f[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.sheet-body { overflow-y: auto; padding: 0 16px 18px; min-height: 0; overscroll-behavior: contain; }
+.tl-note { margin: 0 0 6px; color: var(--muted); font-size: 0.84rem; }
+.tl-day { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 16px 0 4px; font-family: var(--display); font-size: 0.98rem; font-weight: 700; }
+.tl-day span { color: var(--muted); font: 500 0.84rem var(--body); }
+.tl-list { list-style: none; margin: 0; padding: 0; }
+.tl-item { display: grid; grid-template-columns: 5.6rem 10px 1fr auto; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.tl-time { font-weight: 700; font-variant-numeric: tabular-nums; }
+.tl-what { min-width: 0; overflow-wrap: anywhere; }
+.gap { color: var(--muted); font-size: 0.82rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+@media (max-width: 560px) {
+  .row { grid-template-columns: 1fr 1fr; }
+  .row .d { grid-column: 1 / -1; display: flex; gap: 8px; align-items: baseline; }
+  .row .d small { display: inline; }
+  .tap { padding-inline: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .count.bump { animation: none; }
+  .meter i, .modes, .tap { transition: none; }
+}
+</style>
+</head>
+<body>
+
+<main class="auth" id="auth" hidden>
+  <form class="auth-card" id="auth-form" novalidate>
+    <h1>Puff Tracker</h1>
+    <p class="note" style="margin:0">Sign in to see your counts on any device.</p>
+    <label for="auth-email">Email</label>
+    <input id="auth-email" type="email" autocomplete="email" autocapitalize="off" spellcheck="false">
+    <label for="auth-pass">Password</label>
+    <input id="auth-pass" type="password" autocomplete="current-password">
+    <button type="submit" class="tl-btn" id="auth-go">Sign in</button>
+    <p class="err" id="auth-err" role="alert"></p>
+  </form>
+</main>
+
+<div class="wrap" id="app" hidden>
+  <div class="top">
+    <h1>Puff Tracker</h1>
+    <div class="today-date" id="today-date"></div>
+  </div>
+
+  <div class="split" id="split"></div>
+
+  <section class="panel" aria-labelledby="h-limits">
+    <h2 id="h-limits">Daily limits</h2>
+    <div class="fields">
+      <div class="field">
+        <label for="limit-thc"><span class="dot thc"></span><span id="limit-thc-label">THC limit</span></label>
+        <input id="limit-thc" type="number" inputmode="decimal" min="0" max="9999" step="any" placeholder="No limit">
+      </div>
+      <div class="field">
+        <label for="limit-nic"><span class="dot nic"></span><span id="limit-nic-label">Nicotine limit</span></label>
+        <input id="limit-nic" type="number" inputmode="decimal" min="0" max="9999" step="any" placeholder="No limit">
+      </div>
+    </div>
+    <p class="note">The limit is in puffs of whichever device is selected above. Switch devices and it converts. Counts reset at midnight. Leave blank or 0 for no limit.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="h-eq">
+    <h2 id="h-eq">Device equivalents</h2>
+    <div class="fields">
+      <div class="field">
+        <span class="lab"><span class="dot thc"></span>THC</span>
+        <div class="eqrow"><span>1 waxpen puff =</span><input id="ratio-thc" type="number" inputmode="decimal" min="0.1" max="100" step="any" aria-label="Joint puffs per waxpen puff"><span>joint puffs</span></div>
+      </div>
+      <div class="field">
+        <span class="lab"><span class="dot nic"></span>Nicotine</span>
+        <div class="eqrow"><span>1 vape puff =</span><input id="ratio-nic" type="number" inputmode="decimal" min="0.1" max="100" step="any" aria-label="Cigarette puffs per vape puff"><span>cigarette puffs</span></div>
+      </div>
+    </div>
+    <p class="note">These starting ratios are rough estimates I picked, not measured values. Strength, device and how hard you pull all change them, so adjust to match your own gear.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="h-hist">
+    <h2 id="h-hist">History</h2>
+    <p class="note" id="hist-note" style="margin:0 0 12px"></p>
+    <div class="hist" id="history"></div>
+    <button type="button" class="morebtn" id="more" hidden>Show older days</button>
+  </section>
+
+  <p class="foot"><span id="status"></span> <button type="button" class="linkbtn" id="signout">Sign out</button></p>
+
+  <div class="dock"><button type="button" class="tl-btn" id="tl-open" aria-haspopup="dialog">Timeline</button></div>
+</div>
+
+<div class="sheet-wrap" id="tl" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="tl-title">
+    <div class="sheet-head">
+      <h2 id="tl-title">Timeline</h2>
+      <button type="button" class="tl-x" id="tl-close">Close</button>
+    </div>
+    <div class="tl-filters" role="group" aria-label="Filter timeline">
+      <button type="button" class="tl-f" data-f="all" aria-pressed="true">All</button>
+      <button type="button" class="tl-f" data-f="thc" aria-pressed="false">THC</button>
+      <button type="button" class="tl-f" data-f="nic" aria-pressed="false">Nicotine</button>
+    </div>
+    <div class="sheet-body" id="tl-body"></div>
+  </div>
+</div>
+
+<noscript><p style="margin:16px;padding:14px;border:2px solid #a64b06;border-radius:12px;font-weight:600">This page needs JavaScript. Open it in a full browser (Safari, Chrome, Firefox) instead of a file preview.</p></noscript>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+(function () {
+  /* The URL and anon key are public by design. Row-level security in the database
+     limits every signed-in user to their own rows, and signed-out visitors get nothing. */
+  var SB_URL = 'https://chqogvxuoeypraplllhx.supabase.co';
+  var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNocW9ndnh1b2V5cHJhcGxsbGh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2ODQ4MzAsImV4cCI6MjEwODI2MDgzMH0.y9sWNcV3V08P9G4_rTvq-1iizxDRDrAyyepX0NdcMh0';
+
+  var SUBS = {
+    thc: { name: 'THC', base: 'waxpen', modes: [{ id: 'waxpen', label: 'Waxpen' }, { id: 'joint', label: 'Joint' }] },
+    nic: { name: 'Nicotine', base: 'vape', modes: [{ id: 'vape', label: 'Vape' }, { id: 'cigarette', label: 'Cigarette' }] }
+  };
+  var ORDER = ['thc', 'nic'];
+  var DEF_RATIOS = { thc: 3, nic: 2 };
+  var CACHE_KEY = 'puff-tracker-cache-v2';
+  var MODES_KEY = 'puff-tracker-modes-v1';
+  var TL_MAX = 400;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var appEl = $('app'), authEl = $('auth'), tlEl = $('tl'), statusEl = $('status');
+
+  var sb = null, uid = null, email = '', channel = null;
+  var events = [];                 /* every tap: {id, t(ms), sub, mode, lt, ln} */
+  var box = freshBox();            /* changes not yet confirmed by the server */
+  var flushing = false, again = false, lastErr = false, flushTimer = null;
+  var renderedKey = '', showAll = false;
+  var tlFilter = 'all', tlReturn = null;
+  var state = freshState();
+
+  function freshBox() { return { ins: {}, del: {}, set: false }; }
+  function freshState() {
+    return {
+      limits: { thc: 0, nic: 0 },
+      ratios: { thc: DEF_RATIOS.thc, nic: DEF_RATIOS.nic },
+      modes: { thc: SUBS.thc.base, nic: SUBS.nic.base },
+      days: {}, log: []
+    };
+  }
+  function num(x, lo, hi, d) { x = Number(x); if (!isFinite(x)) return d; return Math.min(hi, Math.max(lo, x)); }
+  function validMode(sub, m) { return SUBS[sub].modes.some(function (o) { return o.id === m; }); }
+  function modeIndex(sub, mode) { return SUBS[sub].modes.map(function (m) { return m.id; }).indexOf(mode); }
+  function uuid() {
+    try { if (window.crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+      var r = Math.random() * 16 | 0;
+      return (c === 'x' ? r : (r & 3 | 8)).toString(16);
+    });
+  }
+
+  /* ---------- dates ---------- */
+  function dayKey(d) {
+    d = d || new Date();
+    var m = d.getMonth() + 1, day = d.getDate();
+    return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day;
+  }
+  function keyToDate(k) { var p = k.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+
+  /* ---------- events, settings, derived day totals ---------- */
+  function cleanEvent(e) {
+    if (!e || typeof e.id !== 'string' || !SUBS[e.sub] || !validMode(e.sub, e.mode)) return null;
+    var t = Number(e.t);
+    if (!isFinite(t) || t <= 0) return null;
+    return { id: e.id, t: Math.round(t), sub: e.sub, mode: e.mode, lt: num(e.lt, 0, 9999, 0), ln: num(e.ln, 0, 9999, 0) };
+  }
+  function cleanEvents(arr) {
+    var out = [];
+    (Array.isArray(arr) ? arr : []).forEach(function (e) { var c = cleanEvent(e); if (c) out.push(c); });
+    return out;
+  }
+  function fromRow(r) {
+    return cleanEvent({ id: r.id, t: Date.parse(r.t), sub: r.sub, mode: r.mode, lt: r.lim_thc, ln: r.lim_nic });
+  }
+  function toRow(e) {
+    return { id: e.id, t: new Date(e.t).toISOString(), sub: e.sub, mode: e.mode, lim_thc: e.lt, lim_nic: e.ln };
+  }
+  function applySettings(s) {
+    ORDER.forEach(function (sub) {
+      state.limits[sub] = num(s && s.limits && s.limits[sub], 0, 9999, 0);
+      state.ratios[sub] = num(s && s.ratios && s.ratios[sub], 0.1, 100, DEF_RATIOS[sub]);
+    });
+  }
+  function emptyDay() {
+    var d = {};
+    ORDER.forEach(function (sub) { d[sub] = {}; SUBS[sub].modes.forEach(function (m) { d[sub][m.id] = 0; }); });
+    return d;
+  }
+  function rebuild() {
+    events.sort(function (a, b) { return a.t - b.t; });
+    var days = {}, log = [], tk = dayKey();
+    events.forEach(function (e) {
+      var k = dayKey(new Date(e.t));
+      var d = days[k] || (days[k] = emptyDay());
+      d[e.sub][e.mode] += 1;
+      d.lim = { thc: e.lt, nic: e.ln };
+      log.push([e.t, ORDER.indexOf(e.sub), modeIndex(e.sub, e.mode)]);
+    });
+    if (days[tk]) delete days[tk].lim;   /* today uses the live limit */
+    state.days = days;
+    state.log = log;
+  }
+  function loadModes() {
+    try {
+      var m = JSON.parse(localStorage.getItem(MODES_KEY));
+      ORDER.forEach(function (sub) { if (m && validMode(sub, m[sub])) state.modes[sub] = m[sub]; });
+    } catch (e) {}
+  }
+  function saveModes() { try { localStorage.setItem(MODES_KEY, JSON.stringify(state.modes)); } catch (e) {} }
+
+  /* ---------- math ---------- */
+  function w(sub, mode) { return mode === SUBS[sub].base ? 1 : 1 / state.ratios[sub]; }
+  function baseTotal(day, sub) {
+    var t = 0;
+    SUBS[sub].modes.forEach(function (m) { t += ((day && day[sub] && day[sub][m.id]) || 0) * w(sub, m.id); });
+    return t;
+  }
+  function inMode(day, sub, mode) { return baseTotal(day, sub) / w(sub, mode); }
+  function otherMode(sub) {
+    var cur = state.modes[sub];
+    return SUBS[sub].modes.filter(function (m) { return m.id !== cur; })[0];
+  }
+  function modeLabel(sub, id) { return SUBS[sub].modes.filter(function (m) { return m.id === id; })[0].label; }
+  function fmt(n) {
+    var r = Math.round(n * 10) / 10;
+    if (Object.is(r, -0)) r = 0;
+    return String(r);
+  }
+  function puffs(n, label) { return label.toLowerCase() + ' puff' + (Math.abs(n - 1) < 0.05 ? '' : 's'); }
+
+  /* ---------- local cache and sync queue ---------- */
+  function persistCache() {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({
+        uid: uid, events: events, box: box,
+        settings: { limits: state.limits, ratios: state.ratios }
+      }));
+    } catch (e) {}
+  }
+  function loadCache() {
+    try { var c = JSON.parse(localStorage.getItem(CACHE_KEY)); if (c && c.uid === uid) return c; } catch (e) {}
+    return null;
+  }
+  function clearCache() { try { localStorage.removeItem(CACHE_KEY); } catch (e) {} }
+  function pendingCount() { return Object.keys(box.ins).length + Object.keys(box.del).length + (box.set ? 1 : 0); }
+  function setStatus() {
+    var n = pendingCount(), msg;
+    if (lastErr) msg = 'Can’t reach the server right now. ' + (n ? n + (n === 1 ? ' change is' : ' changes are') + ' saved on this device and will sync later.' : 'Showing your last synced data.');
+    else if (n) msg = 'Syncing ' + n + (n === 1 ? ' change' : ' changes') + '…';
+    else msg = 'Synced across your devices.';
+    statusEl.textContent = (email ? 'Signed in as ' + email + '. ' : '') + msg;
+  }
+  function queueFlush(ms) { clearTimeout(flushTimer); flushTimer = setTimeout(flush, ms); }
+
+  async function flush() {
+    if (!sb || !uid) return;
+    if (flushing) { again = true; return; }
+    flushing = true;
+    try {
+      do {
+        again = false;
+        var ins = Object.keys(box.ins).map(function (k) { return box.ins[k]; });
+        if (ins.length) {
+          var r1 = await sb.from('puff_events').upsert(ins.map(toRow), { onConflict: 'id' });
+          if (r1.error) throw r1.error;
+          ins.forEach(function (e) { if (box.ins[e.id] === e) delete box.ins[e.id]; });
+        }
+        var dels = Object.keys(box.del);
+        if (dels.length) {
+          var r2 = await sb.from('puff_events').delete().in('id', dels);
+          if (r2.error) throw r2.error;
+          dels.forEach(function (id) { delete box.del[id]; });
+        }
+        if (box.set) {
+          box.set = false;
+          var r3 = await sb.from('puff_settings').upsert({
+            user_id: uid, limits: state.limits, ratios: state.ratios, updated_at: new Date().toISOString()
+          }, { onConflict: 'user_id' });
+          if (r3.error) { box.set = true; throw r3.error; }
+        }
+      } while (again);
+      lastErr = false;
+    } catch (e) { lastErr = true; }
+    finally { flushing = false; persistCache(); setStatus(); }
+  }
+
+  async function pull() {
+    if (!sb || !uid) return;
+    try {
+      var all = [], from = 0, PAGE = 1000;
+      for (;;) {
+        var r = await sb.from('puff_events').select('id,t,sub,mode,lim_thc,lim_nic')
+          .order('t', { ascending: true }).order('id', { ascending: true }).range(from, from + PAGE - 1);
+        if (r.error) throw r.error;
+        all = all.concat(r.data || []);
+        if (!r.data || r.data.length < PAGE) break;
+        from += PAGE;
+      }
+      var map = {};
+      all.forEach(function (row) { var e = fromRow(row); if (e) map[e.id] = e; });
+      Object.keys(box.ins).forEach(function (id) { map[id] = box.ins[id]; });
+      Object.keys(box.del).forEach(function (id) { delete map[id]; });
+      events = Object.keys(map).map(function (id) { return map[id]; });
+
+      var s = await sb.from('puff_settings').select('limits,ratios').maybeSingle();
+      if (s.error) throw s.error;
+      if (s.data) { if (!box.set) applySettings(s.data); }
+      else box.set = true;            /* first sign-in: save current settings */
+      lastErr = false;
+      rebuild(); persistCache(); render(); syncInputs();
+    } catch (e) { lastErr = true; }
+    setStatus();
+  }
+  async function sync() { await flush(); await pull(); if (pendingCount()) flush(); }
+
+  /* ---------- live updates from other devices ---------- */
+  function startRealtime() {
+    if (channel || !sb) return;
+    try {
+      channel = sb.channel('puff-sync')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'puff_events' }, onEventChange)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'puff_settings' }, onSettingsChange)
+        .subscribe();
+    } catch (e) { channel = null; }
+  }
+  function onEventChange(p) {
+    var id = (p.new && p.new.id) || (p.old && p.old.id);
+    if (!id) return;
+    var at = -1;
+    events.forEach(function (e, i) { if (e.id === id) at = i; });
+    if (p.eventType === 'DELETE') { if (at >= 0) events.splice(at, 1); }
+    else {
+      var ev = fromRow(p.new);
+      if (!ev || box.del[id]) return;
+      if (at >= 0) events[at] = ev; else events.push(ev);
+    }
+    rebuild(); persistCache(); render();
+  }
+  function onSettingsChange(p) {
+    if (!p.new || box.set) return;
+    applySettings(p.new);
+    persistCache(); render(); syncInputs();
+  }
+
+  /* ---------- build hero once ---------- */
+  var split = $('split');
+  split.innerHTML = ORDER.map(function (sub) {
+    var S = SUBS[sub];
+    return '<div class="side ' + sub + '" data-sub="' + sub + '">' +
+      '<button class="tap" type="button" data-act="log" aria-label="Log a ' + S.name + ' puff">' +
+        '<span class="name">' + S.name + '</span>' +
+        '<span class="mid"><span class="count" data-r="count">0</span><span class="unit" data-r="unit"></span><span class="eq" data-r="eq"></span></span>' +
+        '<span class="bot"><span class="meter" data-r="meter"><i></i></span><span class="status" data-r="status" aria-live="polite"></span>' +
+        '<span class="hint">Tap to log a puff<span class="hov"> &middot; hover to switch device</span></span></span>' +
+      '</button>' +
+      '<button class="undo" type="button" data-act="undo" aria-label="Remove one ' + S.name + ' puff">&minus;1</button>' +
+      '<div class="modes" role="group" aria-label="' + S.name + ' device">' +
+        S.modes.map(function (m) { return '<button class="chip" type="button" data-act="mode" data-mode="' + m.id + '" aria-pressed="false">' + m.label + '</button>'; }).join('') +
+      '</div></div>';
+  }).join('');
+
+  function q(sub, r) { return split.querySelector('.side.' + sub + ' [data-r="' + r + '"]'); }
+
+  function renderHero() {
+    var td = state.days[dayKey()];
+    ORDER.forEach(function (sub) {
+      var mode = state.modes[sub], wt = w(sub, mode);
+      var total = inMode(td, sub, mode);
+      var limBase = state.limits[sub];
+      var lim = limBase / wt;
+      var other = otherMode(sub);
+      q(sub, 'count').textContent = fmt(total);
+      q(sub, 'unit').textContent = puffs(total, modeLabel(sub, mode)) + ' today';
+      q(sub, 'eq').textContent = '≈ ' + fmt(inMode(td, sub, other.id)) + ' ' + puffs(inMode(td, sub, other.id), other.label);
+      var meter = q(sub, 'meter'), fill = meter.firstChild, status = q(sub, 'status');
+      var base = baseTotal(td, sub);
+      if (limBase > 0) {
+        var over = base > limBase + 1e-9, at = Math.abs(base - limBase) < 1e-9;
+        meter.classList.remove('none');
+        meter.classList.toggle('over', over);
+        fill.style.width = Math.min(100, base / limBase * 100) + '%';
+        status.textContent = over ? fmt(total - lim) + ' over limit of ' + fmt(lim)
+          : at ? 'Limit reached (' + fmt(lim) + ')'
+          : fmt(lim - total) + ' left of ' + fmt(lim);
+      } else {
+        meter.classList.add('none');
+        meter.classList.remove('over');
+        fill.style.width = '0';
+        status.textContent = 'No limit set';
+      }
+      var side = split.querySelector('.side.' + sub);
+      side.querySelectorAll('.chip').forEach(function (c) { c.setAttribute('aria-pressed', c.getAttribute('data-mode') === mode ? 'true' : 'false'); });
+      side.querySelector('.tap').setAttribute('aria-label', 'Log a ' + SUBS[sub].name + ' puff on ' + modeLabel(sub, mode).toLowerCase() + '. ' + fmt(total) + ' ' + puffs(total, modeLabel(sub, mode)) + ' today.');
+    });
+  }
+
+  function renderHistory() {
+    var tk = dayKey();
+    var keys = Object.keys(state.days);
+    if (keys.indexOf(tk) < 0) keys.push(tk);
+    keys.sort().reverse();
+    var scale = {};
+    ORDER.forEach(function (sub) {
+      var mode = state.modes[sub], wt = w(sub, mode), mx = 1;
+      keys.forEach(function (k) {
+        var d = state.days[k];
+        var lb = d && d.lim ? d.lim[sub] : (k === tk ? state.limits[sub] : 0);
+        mx = Math.max(mx, inMode(d, sub, mode), lb / wt);
+      });
+      scale[sub] = mx;
+    });
+    $('hist-note').textContent =
+      'Totals are shown as ' + ORDER.map(function (s) { return puffs(2, modeLabel(s, state.modes[s])); }).join(' and ') +
+      '. Switch devices above to see the other equivalent. The tick on each bar is that day’s limit.';
+    var shown = showAll ? keys : keys.slice(0, 30);
+    var n = new Date();
+    var yk = dayKey(new Date(n.getFullYear(), n.getMonth(), n.getDate() - 1));
+    var html = shown.map(function (k) {
+      var d = state.days[k];
+      var date = keyToDate(k);
+      var lead = k === tk ? 'Today' : k === yk ? 'Yesterday' : date.toLocaleDateString(undefined, { weekday: 'long' });
+      var rest = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      return '<div class="row"><div class="d">' + lead + '<small>' + rest + '</small></div>' +
+        ORDER.map(function (sub) { return cell(sub, k, d, tk, scale[sub]); }).join('') + '</div>';
+    }).join('');
+    var onlyToday = Object.keys(state.days).length === 0;
+    $('history').innerHTML = html + (onlyToday ? '<div class="empty">Past days will be listed here after your first puff.</div>' : '');
+    $('more').hidden = showAll || keys.length <= 30;
+  }
+
+  function cell(sub, k, d, tk, sc) {
+    var S = SUBS[sub], mode = state.modes[sub], wt = w(sub, mode);
+    var t = inMode(d, sub, mode);
+    var limBase = d && d.lim ? d.lim[sub] : (k === tk ? state.limits[sub] : 0);
+    var lim = limBase / wt;
+    var over = limBase > 0 && baseTotal(d, sub) > limBase + 1e-9;
+    var parts = S.modes.map(function (m) { return [m.label, (d && d[sub][m.id]) || 0]; })
+      .filter(function (x) { return x[1] > 0; })
+      .map(function (x) { return x[0] + ' ' + x[1]; }).join(' · ') || 'Nothing logged';
+    return '<div class="cell ' + sub + '"><div class="lab"><span class="dot ' + sub + '"></span>' + S.name + '</div>' +
+      '<div class="num">' + fmt(t) + '<small>' + puffs(t, modeLabel(sub, mode)) + '</small>' + (over ? '<span class="tag">+' + fmt(t - lim) + ' over</span>' : '') + '</div>' +
+      '<div class="bar"><i class="' + (over ? 'over' : '') + '" style="width:' + Math.min(100, t / sc * 100) + '%"></i>' +
+      (limBase > 0 ? '<b style="left:' + Math.min(100, lim / sc * 100) + '%"></b>' : '') + '</div>' +
+      '<div class="sub">' + parts + '</div>' +
+      '<div class="sub">' + (limBase > 0 ? 'Limit ' + fmt(lim) : 'No limit') + '</div></div>';
+  }
+
+  function syncInputs() {
+    var ae = document.activeElement;
+    ORDER.forEach(function (sub) {
+      var mode = state.modes[sub];
+      var li = $('limit-' + sub), ri = $('ratio-' + sub);
+      $('limit-' + sub + '-label').textContent =
+        SUBS[sub].name + ' limit, in ' + modeLabel(sub, mode).toLowerCase() + ' puffs per day';
+      if (ae !== li) { var lv = state.limits[sub] / w(sub, mode); li.value = lv > 0 ? String(Math.round(lv * 10) / 10) : ''; }
+      if (ae !== ri) ri.value = String(state.ratios[sub]);
+    });
+  }
+
+  function render() {
+    renderedKey = dayKey();
+    $('today-date').textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+    renderHero();
+    renderHistory();
+    renderDock();
+    if (!tlEl.hidden) renderTimeline();
+  }
+
+  /* ---------- timeline ---------- */
+  function fmtGap(ms) {
+    var m = Math.round(ms / 60000);
+    if (m < 1) return '<1 min';
+    if (m < 60) return m + ' min';
+    var h = Math.floor(m / 60), r = m % 60;
+    return h + ' h' + (r ? ' ' + r + ' min' : '');
+  }
+  function dayLabel(k) {
+    var n = new Date();
+    if (k === dayKey(n)) return 'Today';
+    if (k === dayKey(new Date(n.getFullYear(), n.getMonth(), n.getDate() - 1))) return 'Yesterday';
+    return keyToDate(k).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+  }
+  function renderDock() {
+    var tk = dayKey(), n = 0;
+    state.log.forEach(function (e) { if (dayKey(new Date(e[0])) === tk) n++; });
+    $('tl-open').textContent = n ? 'Timeline · ' + n + ' today' : 'Timeline';
+  }
+  function renderTimeline() {
+    var last = {}, items = [];
+    state.log.forEach(function (e) {
+      var sub = ORDER[e[1]], mode = sub && SUBS[sub].modes[e[2]];
+      if (!mode) return;
+      var prev = last[sub];
+      var gap = prev !== undefined && dayKey(new Date(prev)) === dayKey(new Date(e[0])) ? e[0] - prev : null;
+      last[sub] = e[0];
+      if (tlFilter === 'all' || tlFilter === sub) items.push({ t: e[0], sub: sub, mode: mode.label, gap: gap });
+    });
+    items.reverse();
+    var trimmed = items.length > TL_MAX;
+    if (trimmed) items = items.slice(0, TL_MAX);
+    var groups = [], idx = {};
+    items.forEach(function (it) {
+      var k = dayKey(new Date(it.t));
+      if (idx[k] === undefined) { idx[k] = groups.length; groups.push({ k: k, list: [] }); }
+      groups[idx[k]].list.push(it);
+    });
+    var html;
+    if (!groups.length) {
+      html = '<p class="empty">No timed puffs yet. Tap green or blue and each tap shows up here with its day and time.</p>';
+    } else {
+      html = '<p class="tl-note">Gaps show the time since your previous puff of the same kind that day.' +
+        (trimmed ? ' Showing the latest ' + TL_MAX + ' puffs.' : '') + '</p>' +
+        groups.map(function (g) {
+          return '<h3 class="tl-day">' + dayLabel(g.k) + '<span>' + g.list.length + (g.list.length === 1 ? ' puff' : ' puffs') + '</span></h3><ul class="tl-list">' +
+            g.list.map(function (it) {
+              var dt = new Date(it.t);
+              return '<li class="tl-item"><time class="tl-time" datetime="' + dt.toISOString() + '">' +
+                dt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) + '</time>' +
+                '<span class="dot ' + it.sub + '"></span><span class="tl-what">' + SUBS[it.sub].name + ' · ' + it.mode + '</span>' +
+                (it.gap !== null ? '<span class="gap">+' + fmtGap(it.gap) + '</span>' : '<span></span>') + '</li>';
+            }).join('') + '</ul>';
+        }).join('');
+    }
+    $('tl-body').innerHTML = html;
+    tlEl.querySelectorAll('.tl-f').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-f') === tlFilter ? 'true' : 'false'); });
+  }
+  function openTl() {
+    tlReturn = document.activeElement;
+    renderTimeline();
+    tlEl.hidden = false;
+    document.body.style.overflow = 'hidden';
+    $('tl-close').focus();
+  }
+  function closeTl() {
+    tlEl.hidden = true;
+    document.body.style.overflow = '';
+    if (tlReturn && tlReturn.focus && !appEl.hidden) tlReturn.focus();
+  }
+  $('tl-open').addEventListener('click', openTl);
+  $('tl-close').addEventListener('click', closeTl);
+  tlEl.addEventListener('click', function (e) {
+    if (e.target === tlEl) { closeTl(); return; }
+    var f = e.target.closest('[data-f]');
+    if (f) { tlFilter = f.getAttribute('data-f'); renderTimeline(); }
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !tlEl.hidden) closeTl(); });
+
+  /* ---------- actions ---------- */
+  function log(sub) {
+    var ev = { id: uuid(), t: Date.now(), sub: sub, mode: state.modes[sub], lt: state.limits.thc, ln: state.limits.nic };
+    events.push(ev);
+    box.ins[ev.id] = ev;
+    rebuild(); persistCache(); render(); setStatus();
+    var c = q(sub, 'count'); c.classList.remove('bump'); void c.offsetWidth; c.classList.add('bump');
+    var td = state.days[dayKey()];
+    try { if (navigator.vibrate) navigator.vibrate(state.limits[sub] > 0 && baseTotal(td, sub) > state.limits[sub] + 1e-9 ? [30, 40, 30] : 10); } catch (e) {}
+    flush();
+  }
+  function undo(sub) {
+    var tk = dayKey(), mode = state.modes[sub], any = null, same = null;
+    for (var i = events.length - 1; i >= 0; i--) {
+      var e = events[i];
+      if (dayKey(new Date(e.t)) !== tk) break;
+      if (e.sub !== sub) continue;
+      if (!any) any = e;
+      if (e.mode === mode) { same = e; break; }
+    }
+    var target = same || any;
+    if (!target) return;
+    events.splice(events.indexOf(target), 1);
+    delete box.ins[target.id];
+    box.del[target.id] = true;
+    rebuild(); persistCache(); render(); setStatus();
+    flush();
+  }
+  function settingsChanged() {
+    box.set = true;
+    persistCache(); render(); setStatus();
+    queueFlush(700);
+  }
+  split.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-act]');
+    if (!b) return;
+    var sub = b.closest('.side').getAttribute('data-sub');
+    var act = b.getAttribute('data-act');
+    if (act === 'log') log(sub);
+    else if (act === 'undo') undo(sub);
+    else if (act === 'mode') { state.modes[sub] = b.getAttribute('data-mode'); saveModes(); render(); syncInputs(); }
+  });
+  ORDER.forEach(function (sub) {
+    $('limit-' + sub).addEventListener('input', function (e) {
+      var v = e.target.value === '' ? 0 : Number(e.target.value);
+      if (!isFinite(v) || v < 0) return;
+      state.limits[sub] = Math.min(9999, v * w(sub, state.modes[sub]));
+      settingsChanged();
+    });
+    $('ratio-' + sub).addEventListener('input', function (e) {
+      var v = Number(e.target.value);
+      if (!isFinite(v) || v < 0.1 || v > 100) return;
+      state.ratios[sub] = v;
+      settingsChanged(); syncInputs();
+    });
+  });
+  $('more').addEventListener('click', function () { showAll = true; renderHistory(); });
+
+  /* ---------- sign in and out ---------- */
+  function showAuth(msg) {
+    appEl.hidden = true;
+    authEl.hidden = false;
+    $('auth-err').textContent = msg || '';
+    $('auth-go').disabled = false;
+  }
+  function enter(session) {
+    uid = session.user.id;
+    email = session.user.email || '';
+    authEl.hidden = true;
+    appEl.hidden = false;
+    var c = loadCache();
+    events = c ? cleanEvents(c.events) : [];
+    box = freshBox();
+    if (c && c.box) {
+      box.ins = {}; box.del = {};
+      Object.keys(c.box.ins || {}).forEach(function (id) { var e = cleanEvent(c.box.ins[id]); if (e) box.ins[e.id] = e; });
+      Object.keys(c.box.del || {}).forEach(function (id) { box.del[id] = true; });
+      box.set = !!c.box.set;
+    }
+    if (c && c.settings) applySettings(c.settings);
+    rebuild(); render(); syncInputs(); setStatus();
+    startRealtime();
+    sync();
+  }
+  function leave() {
+    clearTimeout(flushTimer);
+    try { if (channel && sb) sb.removeChannel(channel); } catch (e) {}
+    channel = null;
+    clearCache();
+    uid = null; email = '';
+    events = []; box = freshBox(); lastErr = false;
+    var modes = state.modes;
+    state = freshState(); state.modes = modes;
+    rebuild();
+    if (!tlEl.hidden) closeTl();
+    showAuth('');
+  }
+  $('auth-form').addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    var em = $('auth-email').value.trim(), pw = $('auth-pass').value;
+    if (!sb) { $('auth-err').textContent = 'Couldn’t load the sign-in library. Check your connection and reload.'; return; }
+    if (!em || !pw) { $('auth-err').textContent = 'Enter your email and password.'; return; }
+    $('auth-go').disabled = true;
+    $('auth-err').textContent = '';
+    try {
+      var r = await sb.auth.signInWithPassword({ email: em, password: pw });
+      if (r.error) {
+        $('auth-err').textContent = /invalid login/i.test(r.error.message) ? 'Wrong email or password.' : r.error.message;
+        $('auth-go').disabled = false;
+      } else {
+        $('auth-pass').value = '';
+        enter(r.data.session);
+      }
+    } catch (e) {
+      $('auth-err').textContent = 'Couldn’t reach the server. Try again.';
+      $('auth-go').disabled = false;
+    }
+  });
+  $('signout').addEventListener('click', async function () {
+    try { await flush(); } catch (e) {}
+    if (pendingCount()) {
+      statusEl.textContent = 'Some changes haven’t synced yet. Reconnect, wait a moment, then sign out.';
+      return;
+    }
+    try { await sb.auth.signOut(); } catch (e) {}
+    leave();
+  });
+
+  /* ---------- midnight reset and background sync ---------- */
+  function checkRollover() { if (uid && dayKey() !== renderedKey) { rebuild(); render(); } }
+  setInterval(checkRollover, 30000);
+  setInterval(function () { if (uid && pendingCount()) flush(); }, 60000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && uid) { checkRollover(); sync(); } });
+  window.addEventListener('online', function () { if (uid) sync(); });
+
+  /* ---------- start ---------- */
+  loadModes();
+  (async function () {
+    if (!window.supabase || !window.supabase.createClient) {
+      showAuth('Couldn’t load the sign-in library. Check your connection and reload.');
+      return;
+    }
+    sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
+    sb.auth.onAuthStateChange(function (evt) { if (evt === 'SIGNED_OUT' && uid) leave(); });
+    try {
+      var r = await sb.auth.getSession();
+      if (r.data && r.data.session) enter(r.data.session); else showAuth('');
+    } catch (e) { showAuth(''); }
+  })();
+})();
+</script>
+</body>
+</html>
