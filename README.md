@@ -1,2 +1,0 @@
-# PuffTracker
-Personal puff tracker
