@@ -7,12 +7,13 @@
 <meta name="robots" content="noindex,nofollow">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Puff Tracker">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='16' height='32' fill='%2314764a'/%3E%3Crect x='16' width='16' height='32' fill='%232554c7'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 33 32'%3E%3Crect width='11' height='32' fill='%2314764a'/%3E%3Crect x='11' width='11' height='32' fill='%23d8a31a'/%3E%3Crect x='22' width='11' height='32' fill='%232554c7'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Hanken+Grotesk:wght@400..700&display=swap">
 <style>
-/* Layout: a full-width split counter (green THC | blue nicotine) with device chips that appear on hover,
-   then limits and device equivalents, then a day-by-day history list and a bottom Timeline button. */
+/* Layout: a full-width three-way counter (green THC | gold alcohol | blue nicotine) with chips that
+   appear on hover, then limits, equivalents and the alcohol container, then day-by-day history and a
+   bottom Timeline button. */
 :root {
   color-scheme: light;
   --bg: #f1f4f3;
@@ -23,8 +24,12 @@
   --track: #e2e8e5;
   --thc: #14764a;
   --nic: #2554c7;
+  --alc: #d8a31a;
+  --alc-ink: #241a00;
   --thc-bar: #14764a;
   --nic-bar: #2554c7;
+  --alc-bar: #a87400;
+  --alc-tint: #fbf0d2;
   --warn: #a64b06;
   --focus: #14201b;
   --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
@@ -38,8 +43,11 @@
     --muted: #93a79d;
     --line: #25322d;
     --track: #25322d;
+    --alc: #cf9a17;
     --thc-bar: #35c488;
     --nic-bar: #6f95ff;
+    --alc-bar: #e6b640;
+    --alc-tint: #2a2311;
     --warn: #f0a15c;
     --focus: #e8efeb;
     color-scheme: dark;
@@ -52,8 +60,11 @@
   --muted: #93a79d;
   --line: #25322d;
   --track: #25322d;
+  --alc: #cf9a17;
   --thc-bar: #35c488;
   --nic-bar: #6f95ff;
+  --alc-bar: #e6b640;
+  --alc-tint: #2a2311;
   --warn: #f0a15c;
   --focus: #e8efeb;
   color-scheme: dark;
@@ -73,10 +84,11 @@ body {
   padding-right: max(16px, env(safe-area-inset-right, 0px));
   padding-block: max(14px, env(safe-area-inset-top, 0px)) max(48px, env(safe-area-inset-bottom, 0px));
 }
-.wrap { max-width: 980px; margin: 0 auto; }
+.wrap { max-width: 1040px; margin: 0 auto; }
 .top { display: flex; justify-content: space-between; align-items: baseline; gap: 4px 16px; flex-wrap: wrap; margin-bottom: 12px; }
 h1 { font-family: var(--display); font-size: 1.3rem; font-weight: 700; letter-spacing: -0.01em; margin: 0; }
 h2 { font-family: var(--display); font-size: 1.05rem; font-weight: 700; margin: 0 0 12px; }
+.h-dot { display: flex; align-items: center; gap: 8px; }
 .today-date { color: var(--muted); font-variant-numeric: tabular-nums; }
 
 /* ---------- sign in ---------- */
@@ -91,14 +103,15 @@ h2 { font-family: var(--display); font-size: 1.05rem; font-weight: 700; margin: 
 /* ---------- split counter ---------- */
 .split {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   border-radius: 20px;
   overflow: hidden;
-  min-height: clamp(400px, 62vh, 580px);
+  min-height: clamp(420px, 62vh, 580px);
 }
 .side { position: relative; display: flex; color: #fff; isolation: isolate; min-width: 0; }
 .side.thc { background: var(--thc); }
 .side.nic { background: var(--nic); }
+.side.alc { background: var(--alc); color: var(--alc-ink); }
 .tap {
   all: unset;
   box-sizing: border-box;
@@ -114,7 +127,9 @@ h2 { font-family: var(--display); font-size: 1.05rem; font-weight: 700; margin: 
   touch-action: manipulation;
   user-select: none;
   transition: background-color 0.12s;
+  overflow-wrap: anywhere;
 }
+.side.alc .tap { padding-top: 66px; }
 .tap:active { background: rgba(0, 0, 0, 0.14); }
 .tap:focus-visible { outline: 3px solid #fff; outline-offset: -8px; }
 .name { font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.82rem; }
@@ -122,7 +137,7 @@ h2 { font-family: var(--display); font-size: 1.05rem; font-weight: 700; margin: 
 .count {
   font-family: var(--display);
   font-weight: 800;
-  font-size: clamp(4.2rem, 17vw, 8.5rem);
+  font-size: clamp(2.5rem, 11vw, 7.5rem);
   line-height: 0.9;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
@@ -171,14 +186,40 @@ h2 { font-family: var(--display); font-size: 1.05rem; font-weight: 700; margin: 
 .nic .chip[aria-pressed="true"] { color: var(--nic); }
 .undo:focus-visible, .chip:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 
+/* gold alcohol column */
+.alc .undo, .alc .chip { border-color: rgba(36, 26, 0, 0.45); background: rgba(255, 255, 255, 0.24); color: var(--alc-ink); }
+.alc .undo:hover, .alc .chip:hover { background: rgba(255, 255, 255, 0.42); }
+.alc .chip[aria-pressed="true"] { background: var(--alc-ink); color: #f6d36b; border-color: var(--alc-ink); }
+.alc .meter { background: rgba(36, 26, 0, 0.18); }
+.alc .meter i { background: var(--alc-ink); }
+.alc .meter.over i { background: repeating-linear-gradient(135deg, var(--alc-ink) 0 6px, rgba(36, 26, 0, 0.35) 6px 12px); }
+.alc .tap:focus-visible, .alc .undo:focus-visible, .alc .chip:focus-visible { outline-color: var(--alc-ink); }
+.abv {
+  position: absolute; top: 12px; left: 12px; right: 68px; z-index: 2;
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 10px; border-radius: 12px;
+  background: rgba(255, 255, 255, 0.3); border: 1.5px solid rgba(36, 26, 0, 0.35);
+  color: var(--alc-ink); font-weight: 700; font-size: 0.8rem; cursor: text;
+}
+.abv:focus-within { outline: 3px solid var(--alc-ink); outline-offset: 1px; }
+.abv .abv-l { letter-spacing: 0.08em; text-transform: uppercase; }
+.side.alc .abv input {
+  all: unset; flex: 1; min-width: 0; width: 3em;
+  font: 800 1.05rem var(--body); color: var(--alc-ink); font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield; appearance: textfield;
+}
+.side.alc .abv input::placeholder { color: rgba(36, 26, 0, 0.5); }
+.side.alc .abv input::-webkit-inner-spin-button, .side.alc .abv input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
 /* ---------- settings ---------- */
 .panel { margin-top: 28px; }
-.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px 20px; }
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px 20px; }
 .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .field > label, .field > .lab { font-weight: 600; font-size: 0.92rem; display: flex; align-items: center; gap: 8px; }
 .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
 .dot.thc { background: var(--thc-bar); }
 .dot.nic { background: var(--nic-bar); }
+.dot.alc { background: var(--alc-bar); }
 input[type="number"], input[type="email"], input[type="password"] {
   width: 100%; max-width: 220px; padding: 10px 12px;
   border: 1.5px solid var(--line); border-radius: 10px;
@@ -188,16 +229,35 @@ input[type="number"], input[type="email"], input[type="password"] {
 input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
 .eqrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
 .eqrow input { width: 90px; }
-.note { color: var(--muted); font-size: 0.86rem; margin: 10px 0 0; max-width: 65ch; }
+.note { color: var(--muted); font-size: 0.86rem; margin: 10px 0 0; max-width: 68ch; }
+.fixed { font-weight: 600; font-variant-numeric: tabular-nums; }
+.cont { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
+.opt {
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px;
+  min-width: 7.5rem; padding: 10px 14px;
+  border: 1.5px solid var(--line); border-radius: 12px;
+  background: var(--surface); color: var(--fg);
+  font: 700 0.92rem var(--body); cursor: pointer; text-align: left;
+}
+.opt small { font-weight: 500; color: var(--muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.opt[aria-pressed="true"] { border-color: var(--alc-bar); background: var(--alc-tint); box-shadow: inset 0 0 0 1px var(--alc-bar); }
+.opt:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.cust { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 0.9rem; }
+.cust input { width: 110px; }
 
 /* ---------- history ---------- */
 .hist { border-top: 1px solid var(--line); }
 .row {
-  display: grid; grid-template-columns: 9rem 1fr 1fr; gap: 10px 22px;
+  display: grid; grid-template-columns: 9rem repeat(3, minmax(0, 1fr)); gap: 10px 22px;
   padding: 14px 0; border-bottom: 1px solid var(--line); align-items: start;
+}
+.row.launch {
+  background: var(--alc-tint); border-radius: 12px; padding-inline: 12px; margin-block: 6px;
+  border-bottom-color: transparent; box-shadow: inset 0 0 0 1.5px var(--alc-bar);
 }
 .row .d { font-weight: 700; }
 .row .d small { display: block; color: var(--muted); font-weight: 500; }
+.row .d .badge { display: block; color: var(--alc-bar); font-size: 0.76rem; font-weight: 700; margin-top: 4px; }
 .cell { min-width: 0; }
 .cell .lab { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
 .num { font-family: var(--display); font-weight: 700; font-size: 1.6rem; line-height: 1; font-variant-numeric: tabular-nums; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
@@ -205,6 +265,7 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
 .tag { font: 700 0.76rem var(--body); color: var(--warn); }
 .cell.thc { --c: var(--thc-bar); }
 .cell.nic { --c: var(--nic-bar); }
+.cell.alc { --c: var(--alc-bar); }
 .bar { position: relative; height: 6px; border-radius: 99px; background: var(--track); margin: 10px 0 7px; }
 .bar i { position: absolute; inset: 0 auto 0 0; border-radius: 99px; background: var(--c); }
 .bar i.over { background: repeating-linear-gradient(135deg, var(--c) 0 5px, transparent 5px 9px); outline: 1.5px solid var(--c); outline-offset: -1.5px; }
@@ -262,11 +323,32 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
 .tl-what { min-width: 0; overflow-wrap: anywhere; }
 .gap { color: var(--muted); font-size: 0.82rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
+@media (max-width: 900px) {
+  .portions { flex-wrap: wrap; }
+  .portions .chip { flex: 1 1 calc(50% - 3px); }
+  .side.alc .tap { padding-bottom: 112px; }
+}
+@media (max-width: 640px) {
+  .split { min-height: 480px; border-radius: 16px; }
+  .tap { padding: 52px 9px 104px; gap: 10px; }
+  .side.alc .tap { padding-top: 94px; padding-bottom: 104px; }
+  .name { font-size: 0.7rem; letter-spacing: 0.05em; }
+  .unit { font-size: 0.84rem; }
+  .eq, .status { font-size: 0.78rem; }
+  .hint { font-size: 0.72rem; }
+  .undo { top: 10px; right: 8px; height: 32px; min-width: 40px; padding: 0 8px; }
+  .side.alc .undo { top: 54px; }
+  .abv { top: 10px; left: 8px; right: 8px; padding: 5px 8px; gap: 4px; font-size: 0.7rem; }
+  .modes { left: 6px; right: 6px; bottom: 8px; flex-wrap: wrap; gap: 5px; }
+  .chip { flex: 1 1 100%; padding: 8px 2px; font-size: 0.78rem; }
+  .portions .chip { flex: 1 1 calc(50% - 3px); }
+}
 @media (max-width: 560px) {
   .row { grid-template-columns: 1fr 1fr; }
-  .row .d { grid-column: 1 / -1; display: flex; gap: 8px; align-items: baseline; }
+  .row .d { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
   .row .d small { display: inline; }
-  .tap { padding-inline: 14px; }
+  .row .d .badge { display: inline; margin-top: 0; }
+  .cell.alc { grid-column: 1 / -1; }
 }
 @media (prefers-reduced-motion: reduce) {
   .count.bump { animation: none; }
@@ -305,11 +387,15 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
         <input id="limit-thc" type="number" inputmode="decimal" min="0" max="9999" step="any" placeholder="No limit">
       </div>
       <div class="field">
+        <label for="limit-alc"><span class="dot alc"></span><span>Alcohol limit, in cans per day</span></label>
+        <input id="limit-alc" type="number" inputmode="decimal" min="0" max="999" step="any" placeholder="No limit">
+      </div>
+      <div class="field">
         <label for="limit-nic"><span class="dot nic"></span><span id="limit-nic-label">Nicotine limit</span></label>
         <input id="limit-nic" type="number" inputmode="decimal" min="0" max="9999" step="any" placeholder="No limit">
       </div>
     </div>
-    <p class="note">The limit is in puffs of whichever device is selected above. Switch devices and it converts. Counts reset at midnight. Leave blank or 0 for no limit.</p>
+    <p class="note">THC and nicotine limits are in puffs of whichever device is selected above, and convert when you switch. The alcohol limit is in cans. Counts reset at midnight. Leave blank or 0 for no limit.</p>
   </section>
 
   <section class="panel" aria-labelledby="h-eq">
@@ -320,11 +406,27 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
         <div class="eqrow"><span>1 waxpen puff =</span><input id="ratio-thc" type="number" inputmode="decimal" min="0.1" max="100" step="any" aria-label="Joint puffs per waxpen puff"><span>joint puffs</span></div>
       </div>
       <div class="field">
+        <span class="lab"><span class="dot alc"></span>Alcohol</span>
+        <div class="eqrow"><span class="fixed">1 can = 473 ml at 5% &asymp; 1.39 standard drinks</span></div>
+      </div>
+      <div class="field">
         <span class="lab"><span class="dot nic"></span>Nicotine</span>
         <div class="eqrow"><span>1 vape puff =</span><input id="ratio-nic" type="number" inputmode="decimal" min="0.1" max="100" step="any" aria-label="Cigarette puffs per vape puff"><span>cigarette puffs</span></div>
       </div>
     </div>
-    <p class="note">These starting ratios are rough estimates I picked, not measured values. Strength, device and how hard you pull all change them, so adjust to match your own gear.</p>
+    <p class="note">The THC and nicotine ratios are rough estimates, so adjust them to match your own gear. The alcohol conversion is fixed. It uses Canada&rsquo;s standard drink, 17.05 ml of pure alcohol.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="h-alc">
+    <h2 id="h-alc" class="h-dot"><span class="dot alc"></span>Alcohol container</h2>
+    <div class="cont" role="group" aria-labelledby="h-alc" id="cont">
+      <button type="button" class="opt" data-c="tallboy" aria-pressed="false">Tallboy<small>473 ml</small></button>
+      <button type="button" class="opt" data-c="regular" aria-pressed="false">Regular can<small>355 ml</small></button>
+      <button type="button" class="opt" data-c="fifth" aria-pressed="false">Fifth<small>750 ml</small></button>
+      <button type="button" class="opt" data-c="custom" aria-pressed="false">Custom<small id="custom-show">500 ml</small></button>
+      <label class="cust" for="custom-ml">Custom size <input id="custom-ml" type="number" inputmode="decimal" min="1" max="5000" step="any" placeholder="ml"> ml</label>
+    </div>
+    <p class="note">Each drink counts as portion &times; (container ml &divide; 473) &times; (ABV &divide; 5). A full tallboy of 5% beer is 1 can. Half a tallboy at 8% is 0.8. A quarter of a 40% fifth is about 3.2 cans. A blank ABV uses 5%, a typical beer.</p>
   </section>
 
   <section class="panel" aria-labelledby="h-hist">
@@ -348,6 +450,7 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
     <div class="tl-filters" role="group" aria-label="Filter timeline">
       <button type="button" class="tl-f" data-f="all" aria-pressed="true">All</button>
       <button type="button" class="tl-f" data-f="thc" aria-pressed="false">THC</button>
+      <button type="button" class="tl-f" data-f="alc" aria-pressed="false">Alcohol</button>
       <button type="button" class="tl-f" data-f="nic" aria-pressed="false">Nicotine</button>
     </div>
     <div class="sheet-body" id="tl-body"></div>
@@ -370,33 +473,48 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
   };
   var ORDER = ['thc', 'nic'];
   var DEF_RATIOS = { thc: 3, nic: 2 };
+
+  /* Alcohol: 1 can = one 473 ml tallboy at 5%. Canada's standard drink = 17.05 ml pure alcohol. */
+  var ALC_START = '2026-11-05';          /* the day the Alcohol button was added */
+  var REF_ML = 473, REF_ABV = 5, STD_ML = 17.05, MAX_ABV = 50;
+  var CONTAINERS = {
+    tallboy: { label: 'tallboy', ml: 473 },
+    regular: { label: 'regular can', ml: 355 },
+    fifth: { label: 'fifth', ml: 750 },
+    custom: { label: 'custom', ml: null }
+  };
+  var PORTIONS = [{ v: 1, label: '1' }, { v: 0.75, label: '¾' }, { v: 0.5, label: '½' }, { v: 0.25, label: '¼' }];
+  var PORTION_VALUES = PORTIONS.map(function (p) { return p.v; });
+
   var CACHE_KEY = 'puff-tracker-cache-v2';
   var MODES_KEY = 'puff-tracker-modes-v1';
+  var ALC_UI_KEY = 'puff-tracker-alc-v1';
   var TL_MAX = 400;
 
   var $ = function (id) { return document.getElementById(id); };
   var appEl = $('app'), authEl = $('auth'), tlEl = $('tl'), statusEl = $('status');
 
   var sb = null, uid = null, email = '', channel = null;
-  var events = [];                 /* every tap: {id, t(ms), sub, mode, lt, ln} */
+  var events = [];                 /* every tap, oldest first */
   var box = freshBox();            /* changes not yet confirmed by the server */
   var flushing = false, again = false, lastErr = false, flushTimer = null;
   var renderedKey = '', showAll = false;
   var tlFilter = 'all', tlReturn = null;
   var state = freshState();
+  var alcUi = { abv: '', portion: 1 };   /* per device: what you're drinking right now */
 
   function freshBox() { return { ins: {}, del: {}, set: false }; }
   function freshState() {
     return {
-      limits: { thc: 0, nic: 0 },
+      limits: { thc: 0, nic: 0, alc: 0 },
       ratios: { thc: DEF_RATIOS.thc, nic: DEF_RATIOS.nic },
       modes: { thc: SUBS.thc.base, nic: SUBS.nic.base },
+      alc: { container: 'tallboy', customMl: 500 },
       days: {}, log: []
     };
   }
   function num(x, lo, hi, d) { x = Number(x); if (!isFinite(x)) return d; return Math.min(hi, Math.max(lo, x)); }
-  function validMode(sub, m) { return SUBS[sub].modes.some(function (o) { return o.id === m; }); }
-  function modeIndex(sub, mode) { return SUBS[sub].modes.map(function (m) { return m.id; }).indexOf(mode); }
+  function validMode(sub, m) { return !!SUBS[sub] && SUBS[sub].modes.some(function (o) { return o.id === m; }); }
   function uuid() {
     try { if (window.crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -413,12 +531,36 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
   }
   function keyToDate(k) { var p = k.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
 
+  /* ---------- alcohol math ---------- */
+  function cansFor(portion, ml, abv) { return portion * (ml / REF_ML) * (abv / REF_ABV); }
+  function stdFor(portion, ml, abv) { return portion * ml * (abv / 100) / STD_ML; }
+  function containerMl() { return state.alc.container === 'custom' ? state.alc.customMl : CONTAINERS[state.alc.container].ml; }
+  function effectiveAbv() {
+    var v = Number(alcUi.abv);
+    if (alcUi.abv === '' || !isFinite(v) || v <= 0) return REF_ABV;
+    return Math.min(MAX_ABV, v);
+  }
+  function portionLabel(v) { var p = PORTIONS.filter(function (x) { return x.v === v; })[0]; return p ? p.label : String(v); }
+  function drinkLabel(e) {
+    var what = e.mode === 'custom' ? 'of ' + fmt(e.ml) + ' ml' : CONTAINERS[e.mode].label;
+    return portionLabel(e.portion) + ' ' + what + ' · ' + fmt(e.abv) + '%';
+  }
+
   /* ---------- events, settings, derived day totals ---------- */
   function cleanEvent(e) {
-    if (!e || typeof e.id !== 'string' || !SUBS[e.sub] || !validMode(e.sub, e.mode)) return null;
+    if (!e || typeof e.id !== 'string') return null;
     var t = Number(e.t);
     if (!isFinite(t) || t <= 0) return null;
-    return { id: e.id, t: Math.round(t), sub: e.sub, mode: e.mode, lt: num(e.lt, 0, 9999, 0), ln: num(e.ln, 0, 9999, 0) };
+    var base = { id: e.id, t: Math.round(t), sub: e.sub, mode: e.mode, lt: num(e.lt, 0, 9999, 0), ln: num(e.ln, 0, 9999, 0), la: num(e.la, 0, 999, 0) };
+    if (e.sub === 'alc') {
+      if (!CONTAINERS[e.mode]) return null;
+      var p = Number(e.portion), ml = Number(e.ml), abv = Number(e.abv);
+      if (PORTION_VALUES.indexOf(p) < 0 || !(ml > 0 && ml <= 5000) || !(abv > 0 && abv <= MAX_ABV)) return null;
+      base.portion = p; base.ml = ml; base.abv = abv;
+      return base;
+    }
+    if (!validMode(e.sub, e.mode)) return null;
+    return base;
   }
   function cleanEvents(arr) {
     var out = [];
@@ -426,45 +568,66 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
     return out;
   }
   function fromRow(r) {
-    return cleanEvent({ id: r.id, t: Date.parse(r.t), sub: r.sub, mode: r.mode, lt: r.lim_thc, ln: r.lim_nic });
+    return cleanEvent({ id: r.id, t: Date.parse(r.t), sub: r.sub, mode: r.mode, lt: r.lim_thc, ln: r.lim_nic, la: r.lim_alc, portion: r.portion, ml: r.ml, abv: r.abv });
   }
   function toRow(e) {
-    return { id: e.id, t: new Date(e.t).toISOString(), sub: e.sub, mode: e.mode, lim_thc: e.lt, lim_nic: e.ln };
+    var alc = e.sub === 'alc';
+    return {
+      id: e.id, t: new Date(e.t).toISOString(), sub: e.sub, mode: e.mode,
+      lim_thc: e.lt, lim_nic: e.ln, lim_alc: e.la || 0,
+      portion: alc ? e.portion : null, ml: alc ? e.ml : null, abv: alc ? e.abv : null,
+      cans: alc ? Math.round(cansFor(e.portion, e.ml, e.abv) * 10000) / 10000 : null
+    };
   }
   function applySettings(s) {
     ORDER.forEach(function (sub) {
       state.limits[sub] = num(s && s.limits && s.limits[sub], 0, 9999, 0);
       state.ratios[sub] = num(s && s.ratios && s.ratios[sub], 0.1, 100, DEF_RATIOS[sub]);
     });
+    state.limits.alc = num(s && s.limits && s.limits.alc, 0, 999, 0);
+    var a = (s && s.alc) || {};
+    state.alc.container = CONTAINERS[a.container] ? a.container : 'tallboy';
+    state.alc.customMl = num(a.custom_ml !== undefined ? a.custom_ml : a.customMl, 1, 5000, 500);
   }
   function emptyDay() {
-    var d = {};
+    var d = { alc: { cans: 0, std: 0, n: 0 } };
     ORDER.forEach(function (sub) { d[sub] = {}; SUBS[sub].modes.forEach(function (m) { d[sub][m.id] = 0; }); });
     return d;
   }
   function rebuild() {
     events.sort(function (a, b) { return a.t - b.t; });
-    var days = {}, log = [], tk = dayKey();
+    var days = {}, tk = dayKey();
     events.forEach(function (e) {
       var k = dayKey(new Date(e.t));
       var d = days[k] || (days[k] = emptyDay());
-      d[e.sub][e.mode] += 1;
-      d.lim = { thc: e.lt, nic: e.ln };
-      log.push([e.t, ORDER.indexOf(e.sub), modeIndex(e.sub, e.mode)]);
+      if (e.sub === 'alc') {
+        d.alc.cans += cansFor(e.portion, e.ml, e.abv);
+        d.alc.std += stdFor(e.portion, e.ml, e.abv);
+        d.alc.n += 1;
+      } else {
+        d[e.sub][e.mode] += 1;
+      }
+      d.lim = { thc: e.lt, nic: e.ln, alc: e.la };
     });
-    if (days[tk]) delete days[tk].lim;   /* today uses the live limit */
+    if (days[tk]) delete days[tk].lim;   /* today uses the live limits */
     state.days = days;
-    state.log = log;
+    state.log = events;
   }
-  function loadModes() {
+  function loadLocalUi() {
     try {
       var m = JSON.parse(localStorage.getItem(MODES_KEY));
       ORDER.forEach(function (sub) { if (m && validMode(sub, m[sub])) state.modes[sub] = m[sub]; });
     } catch (e) {}
+    try {
+      var a = JSON.parse(localStorage.getItem(ALC_UI_KEY));
+      if (a && typeof a.abv === 'string') alcUi.abv = a.abv;
+      if (a && PORTION_VALUES.indexOf(a.portion) >= 0) alcUi.portion = a.portion;
+    } catch (e) {}
   }
   function saveModes() { try { localStorage.setItem(MODES_KEY, JSON.stringify(state.modes)); } catch (e) {} }
+  function saveAlcUi() { try { localStorage.setItem(ALC_UI_KEY, JSON.stringify(alcUi)); } catch (e) {} }
 
-  /* ---------- math ---------- */
+  /* ---------- puff math ---------- */
   function w(sub, mode) { return mode === SUBS[sub].base ? 1 : 1 / state.ratios[sub]; }
   function baseTotal(day, sub) {
     var t = 0;
@@ -482,14 +645,21 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
     if (Object.is(r, -0)) r = 0;
     return String(r);
   }
+  function fmt2(n) {
+    var r = Math.round(n * 100) / 100;
+    if (Object.is(r, -0)) r = 0;
+    return String(r);
+  }
   function puffs(n, label) { return label.toLowerCase() + ' puff' + (Math.abs(n - 1) < 0.05 ? '' : 's'); }
+  function cansWord(n) { return Math.abs(n - 1) < 0.005 ? 'can' : 'cans'; }
+  function stdWord(n) { return Math.abs(n - 1) < 0.05 ? 'standard drink' : 'standard drinks'; }
 
   /* ---------- local cache and sync queue ---------- */
   function persistCache() {
     try {
       localStorage.setItem(CACHE_KEY, JSON.stringify({
         uid: uid, events: events, box: box,
-        settings: { limits: state.limits, ratios: state.ratios }
+        settings: { limits: state.limits, ratios: state.ratios, alc: { container: state.alc.container, custom_ml: state.alc.customMl } }
       }));
     } catch (e) {}
   }
@@ -530,7 +700,9 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
         if (box.set) {
           box.set = false;
           var r3 = await sb.from('puff_settings').upsert({
-            user_id: uid, limits: state.limits, ratios: state.ratios, updated_at: new Date().toISOString()
+            user_id: uid, limits: state.limits, ratios: state.ratios,
+            alc: { container: state.alc.container, custom_ml: state.alc.customMl },
+            updated_at: new Date().toISOString()
           }, { onConflict: 'user_id' });
           if (r3.error) { box.set = true; throw r3.error; }
         }
@@ -545,7 +717,7 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
     try {
       var all = [], from = 0, PAGE = 1000;
       for (;;) {
-        var r = await sb.from('puff_events').select('id,t,sub,mode,lim_thc,lim_nic')
+        var r = await sb.from('puff_events').select('id,t,sub,mode,lim_thc,lim_nic,lim_alc,portion,ml,abv')
           .order('t', { ascending: true }).order('id', { ascending: true }).range(from, from + PAGE - 1);
         if (r.error) throw r.error;
         all = all.concat(r.data || []);
@@ -558,7 +730,7 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
       Object.keys(box.del).forEach(function (id) { delete map[id]; });
       events = Object.keys(map).map(function (id) { return map[id]; });
 
-      var s = await sb.from('puff_settings').select('limits,ratios').maybeSingle();
+      var s = await sb.from('puff_settings').select('limits,ratios,alc').maybeSingle();
       if (s.error) throw s.error;
       if (s.data) { if (!box.set) applySettings(s.data); }
       else box.set = true;            /* first sign-in: save current settings */
@@ -598,9 +770,8 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
     persistCache(); render(); syncInputs();
   }
 
-  /* ---------- build hero once ---------- */
-  var split = $('split');
-  split.innerHTML = ORDER.map(function (sub) {
+  /* ---------- build hero once: THC | Alcohol | Nicotine ---------- */
+  function puffSide(sub) {
     var S = SUBS[sub];
     return '<div class="side ' + sub + '" data-sub="' + sub + '">' +
       '<button class="tap" type="button" data-act="log" aria-label="Log a ' + S.name + ' puff">' +
@@ -613,41 +784,74 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
       '<div class="modes" role="group" aria-label="' + S.name + ' device">' +
         S.modes.map(function (m) { return '<button class="chip" type="button" data-act="mode" data-mode="' + m.id + '" aria-pressed="false">' + m.label + '</button>'; }).join('') +
       '</div></div>';
-  }).join('');
+  }
+  function alcSide() {
+    return '<div class="side alc" data-sub="alc">' +
+      '<label class="abv" for="abv"><span class="abv-l">ABV</span>' +
+        '<input id="abv" type="number" inputmode="decimal" min="0.1" max="' + MAX_ABV + '" step="0.1" placeholder="5" aria-label="Alcohol percentage, blank for a 5% average beer"><span>%</span></label>' +
+      '<button class="tap" type="button" data-act="log" aria-label="Log a drink">' +
+        '<span class="name">Alcohol</span>' +
+        '<span class="mid"><span class="count" data-r="count">0</span><span class="unit" data-r="unit"></span><span class="eq" data-r="eq"></span></span>' +
+        '<span class="bot"><span class="meter" data-r="meter"><i></i></span><span class="status" data-r="status" aria-live="polite"></span>' +
+        '<span class="hint" data-r="hint"></span></span>' +
+      '</button>' +
+      '<button class="undo" type="button" data-act="undo" aria-label="Remove the last drink">&minus;1</button>' +
+      '<div class="modes portions" role="group" aria-label="How much of the container you drank">' +
+        PORTIONS.map(function (p) { return '<button class="chip" type="button" data-act="portion" data-portion="' + p.v + '" aria-pressed="false">' + p.label + '</button>'; }).join('') +
+      '</div></div>';
+  }
+  var split = $('split');
+  split.innerHTML = puffSide('thc') + alcSide() + puffSide('nic');
+  var abvInput = $('abv');
 
   function q(sub, r) { return split.querySelector('.side.' + sub + ' [data-r="' + r + '"]'); }
+
+  function meterInto(sub, base, limBase, shownTotal, shownLim, fmtFn) {
+    var meter = q(sub, 'meter'), fill = meter.firstChild, status = q(sub, 'status');
+    if (limBase > 0) {
+      var over = base > limBase + 1e-9, at = Math.abs(base - limBase) < 1e-9;
+      meter.classList.remove('none');
+      meter.classList.toggle('over', over);
+      fill.style.width = Math.min(100, base / limBase * 100) + '%';
+      status.textContent = over ? fmtFn(shownTotal - shownLim) + ' over limit of ' + fmtFn(shownLim)
+        : at ? 'Limit reached (' + fmtFn(shownLim) + ')'
+        : fmtFn(shownLim - shownTotal) + ' left of ' + fmtFn(shownLim);
+    } else {
+      meter.classList.add('none');
+      meter.classList.remove('over');
+      fill.style.width = '0';
+      status.textContent = 'No limit set';
+    }
+  }
 
   function renderHero() {
     var td = state.days[dayKey()];
     ORDER.forEach(function (sub) {
       var mode = state.modes[sub], wt = w(sub, mode);
       var total = inMode(td, sub, mode);
-      var limBase = state.limits[sub];
-      var lim = limBase / wt;
       var other = otherMode(sub);
       q(sub, 'count').textContent = fmt(total);
       q(sub, 'unit').textContent = puffs(total, modeLabel(sub, mode)) + ' today';
       q(sub, 'eq').textContent = '≈ ' + fmt(inMode(td, sub, other.id)) + ' ' + puffs(inMode(td, sub, other.id), other.label);
-      var meter = q(sub, 'meter'), fill = meter.firstChild, status = q(sub, 'status');
-      var base = baseTotal(td, sub);
-      if (limBase > 0) {
-        var over = base > limBase + 1e-9, at = Math.abs(base - limBase) < 1e-9;
-        meter.classList.remove('none');
-        meter.classList.toggle('over', over);
-        fill.style.width = Math.min(100, base / limBase * 100) + '%';
-        status.textContent = over ? fmt(total - lim) + ' over limit of ' + fmt(lim)
-          : at ? 'Limit reached (' + fmt(lim) + ')'
-          : fmt(lim - total) + ' left of ' + fmt(lim);
-      } else {
-        meter.classList.add('none');
-        meter.classList.remove('over');
-        fill.style.width = '0';
-        status.textContent = 'No limit set';
-      }
+      meterInto(sub, baseTotal(td, sub), state.limits[sub], total, state.limits[sub] / wt, fmt);
       var side = split.querySelector('.side.' + sub);
       side.querySelectorAll('.chip').forEach(function (c) { c.setAttribute('aria-pressed', c.getAttribute('data-mode') === mode ? 'true' : 'false'); });
       side.querySelector('.tap').setAttribute('aria-label', 'Log a ' + SUBS[sub].name + ' puff on ' + modeLabel(sub, mode).toLowerCase() + '. ' + fmt(total) + ' ' + puffs(total, modeLabel(sub, mode)) + ' today.');
     });
+
+    var a = td ? td.alc : { cans: 0, std: 0, n: 0 };
+    q('alc', 'count').textContent = fmt2(a.cans);
+    q('alc', 'unit').textContent = cansWord(a.cans) + ' today';
+    q('alc', 'eq').textContent = '≈ ' + fmt(a.std) + ' ' + stdWord(a.std);
+    meterInto('alc', a.cans, state.limits.alc, a.cans, state.limits.alc, fmt2);
+    var ml = containerMl(), abv = effectiveAbv();
+    var what = state.alc.container === 'custom' ? 'of ' + fmt(ml) + ' ml' : CONTAINERS[state.alc.container].label;
+    var adds = cansFor(alcUi.portion, ml, abv);
+    q('alc', 'hint').textContent = 'Tap to log ' + portionLabel(alcUi.portion) + ' ' + what + ' at ' + fmt(abv) + '%' +
+      (alcUi.abv === '' ? ' (avg beer)' : '') + ' = ' + fmt2(adds) + ' ' + cansWord(adds);
+    var side = split.querySelector('.side.alc');
+    side.querySelectorAll('.chip').forEach(function (c) { c.setAttribute('aria-pressed', Number(c.getAttribute('data-portion')) === alcUi.portion ? 'true' : 'false'); });
+    side.querySelector('.tap').setAttribute('aria-label', 'Log a drink: ' + q('alc', 'hint').textContent.replace('Tap to log ', '') + '. ' + fmt2(a.cans) + ' ' + cansWord(a.cans) + ' today.');
   }
 
   function renderHistory() {
@@ -665,9 +869,16 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
       });
       scale[sub] = mx;
     });
+    var amx = 1;
+    keys.forEach(function (k) {
+      if (k < ALC_START) return;
+      var d = state.days[k];
+      var lb = d && d.lim ? d.lim.alc : (k === tk ? state.limits.alc : 0);
+      amx = Math.max(amx, d ? d.alc.cans : 0, lb || 0);
+    });
     $('hist-note').textContent =
       'Totals are shown as ' + ORDER.map(function (s) { return puffs(2, modeLabel(s, state.modes[s])); }).join(' and ') +
-      '. Switch devices above to see the other equivalent. The tick on each bar is that day’s limit.';
+      ', and alcohol in cans (473 ml at 5%). Switch devices above to see the other equivalent. The tick on each bar is that day’s limit. Alcohol tracking starts on the gold day.';
     var shown = showAll ? keys : keys.slice(0, 30);
     var n = new Date();
     var yk = dayKey(new Date(n.getFullYear(), n.getMonth(), n.getDate() - 1));
@@ -676,11 +887,14 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
       var date = keyToDate(k);
       var lead = k === tk ? 'Today' : k === yk ? 'Yesterday' : date.toLocaleDateString(undefined, { weekday: 'long' });
       var rest = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-      return '<div class="row"><div class="d">' + lead + '<small>' + rest + '</small></div>' +
-        ORDER.map(function (sub) { return cell(sub, k, d, tk, scale[sub]); }).join('') + '</div>';
+      var launch = k === ALC_START;
+      return '<div class="row' + (launch ? ' launch' : '') + '"><div class="d">' + lead + '<small>' + rest + '</small>' +
+        (launch ? '<span class="badge">Alcohol tracking started</span>' : '') + '</div>' +
+        ORDER.map(function (sub) { return cell(sub, k, d, tk, scale[sub]); }).join('') +
+        (k >= ALC_START ? alcCell(k, d, tk, amx) : '') + '</div>';
     }).join('');
     var onlyToday = Object.keys(state.days).length === 0;
-    $('history').innerHTML = html + (onlyToday ? '<div class="empty">Past days will be listed here after your first puff.</div>' : '');
+    $('history').innerHTML = html + (onlyToday ? '<div class="empty">Past days will be listed here after your first entry.</div>' : '');
     $('more').hidden = showAll || keys.length <= 30;
   }
 
@@ -700,6 +914,17 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
       '<div class="sub">' + parts + '</div>' +
       '<div class="sub">' + (limBase > 0 ? 'Limit ' + fmt(lim) : 'No limit') + '</div></div>';
   }
+  function alcCell(k, d, tk, sc) {
+    var a = d ? d.alc : { cans: 0, std: 0, n: 0 };
+    var lim = d && d.lim ? d.lim.alc : (k === tk ? state.limits.alc : 0);
+    var over = lim > 0 && a.cans > lim + 1e-9;
+    return '<div class="cell alc"><div class="lab"><span class="dot alc"></span>Alcohol</div>' +
+      '<div class="num">' + fmt2(a.cans) + '<small>' + cansWord(a.cans) + '</small>' + (over ? '<span class="tag">+' + fmt2(a.cans - lim) + ' over</span>' : '') + '</div>' +
+      '<div class="bar"><i class="' + (over ? 'over' : '') + '" style="width:' + Math.min(100, a.cans / sc * 100) + '%"></i>' +
+      (lim > 0 ? '<b style="left:' + Math.min(100, lim / sc * 100) + '%"></b>' : '') + '</div>' +
+      '<div class="sub">' + (a.n ? a.n + (a.n === 1 ? ' drink' : ' drinks') + ' · ≈ ' + fmt(a.std) + ' ' + stdWord(a.std) : 'Nothing logged') + '</div>' +
+      '<div class="sub">' + (lim > 0 ? 'Limit ' + fmt2(lim) : 'No limit') + '</div></div>';
+  }
 
   function syncInputs() {
     var ae = document.activeElement;
@@ -711,6 +936,11 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
       if (ae !== li) { var lv = state.limits[sub] / w(sub, mode); li.value = lv > 0 ? String(Math.round(lv * 10) / 10) : ''; }
       if (ae !== ri) ri.value = String(state.ratios[sub]);
     });
+    if (ae !== $('limit-alc')) $('limit-alc').value = state.limits.alc > 0 ? String(state.limits.alc) : '';
+    if (ae !== $('custom-ml')) $('custom-ml').value = String(state.alc.customMl);
+    if (ae !== abvInput) abvInput.value = alcUi.abv;
+    $('custom-show').textContent = fmt(state.alc.customMl) + ' ml';
+    $('cont').querySelectorAll('.opt').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-c') === state.alc.container ? 'true' : 'false'); });
   }
 
   function render() {
@@ -723,6 +953,7 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
   }
 
   /* ---------- timeline ---------- */
+  var NAMES = { thc: 'THC', nic: 'Nicotine', alc: 'Alcohol' };
   function fmtGap(ms) {
     var m = Math.round(ms / 60000);
     if (m < 1) return '<1 min';
@@ -738,18 +969,20 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
   }
   function renderDock() {
     var tk = dayKey(), n = 0;
-    state.log.forEach(function (e) { if (dayKey(new Date(e[0])) === tk) n++; });
+    state.log.forEach(function (e) { if (dayKey(new Date(e.t)) === tk) n++; });
     $('tl-open').textContent = n ? 'Timeline · ' + n + ' today' : 'Timeline';
   }
   function renderTimeline() {
     var last = {}, items = [];
     state.log.forEach(function (e) {
-      var sub = ORDER[e[1]], mode = sub && SUBS[sub].modes[e[2]];
-      if (!mode) return;
-      var prev = last[sub];
-      var gap = prev !== undefined && dayKey(new Date(prev)) === dayKey(new Date(e[0])) ? e[0] - prev : null;
-      last[sub] = e[0];
-      if (tlFilter === 'all' || tlFilter === sub) items.push({ t: e[0], sub: sub, mode: mode.label, gap: gap });
+      var prev = last[e.sub];
+      var gap = prev !== undefined && dayKey(new Date(prev)) === dayKey(new Date(e.t)) ? e.t - prev : null;
+      last[e.sub] = e.t;
+      if (tlFilter !== 'all' && tlFilter !== e.sub) return;
+      var what = e.sub === 'alc'
+        ? drinkLabel(e) + ' · ' + fmt2(cansFor(e.portion, e.ml, e.abv)) + ' ' + cansWord(cansFor(e.portion, e.ml, e.abv))
+        : modeLabel(e.sub, e.mode);
+      items.push({ t: e.t, sub: e.sub, what: what, gap: gap });
     });
     items.reverse();
     var trimmed = items.length > TL_MAX;
@@ -762,17 +995,17 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
     });
     var html;
     if (!groups.length) {
-      html = '<p class="empty">No timed puffs yet. Tap green or blue and each tap shows up here with its day and time.</p>';
+      html = '<p class="empty">Nothing logged yet. Each tap shows up here with its day and time.</p>';
     } else {
-      html = '<p class="tl-note">Gaps show the time since your previous puff of the same kind that day.' +
-        (trimmed ? ' Showing the latest ' + TL_MAX + ' puffs.' : '') + '</p>' +
+      html = '<p class="tl-note">Gaps show the time since your previous entry of the same kind that day.' +
+        (trimmed ? ' Showing the latest ' + TL_MAX + ' entries.' : '') + '</p>' +
         groups.map(function (g) {
-          return '<h3 class="tl-day">' + dayLabel(g.k) + '<span>' + g.list.length + (g.list.length === 1 ? ' puff' : ' puffs') + '</span></h3><ul class="tl-list">' +
+          return '<h3 class="tl-day">' + dayLabel(g.k) + '<span>' + g.list.length + (g.list.length === 1 ? ' entry' : ' entries') + '</span></h3><ul class="tl-list">' +
             g.list.map(function (it) {
               var dt = new Date(it.t);
               return '<li class="tl-item"><time class="tl-time" datetime="' + dt.toISOString() + '">' +
                 dt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) + '</time>' +
-                '<span class="dot ' + it.sub + '"></span><span class="tl-what">' + SUBS[it.sub].name + ' · ' + it.mode + '</span>' +
+                '<span class="dot ' + it.sub + '"></span><span class="tl-what">' + NAMES[it.sub] + ' · ' + it.what + '</span>' +
                 (it.gap !== null ? '<span class="gap">+' + fmtGap(it.gap) + '</span>' : '<span></span>') + '</li>';
             }).join('') + '</ul>';
         }).join('');
@@ -802,14 +1035,35 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !tlEl.hidden) closeTl(); });
 
   /* ---------- actions ---------- */
-  function log(sub) {
-    var ev = { id: uuid(), t: Date.now(), sub: sub, mode: state.modes[sub], lt: state.limits.thc, ln: state.limits.nic };
+  function limSnap() { return { lt: state.limits.thc, ln: state.limits.nic, la: state.limits.alc }; }
+  function addEvent(ev, sub) {
     events.push(ev);
     box.ins[ev.id] = ev;
     rebuild(); persistCache(); render(); setStatus();
     var c = q(sub, 'count'); c.classList.remove('bump'); void c.offsetWidth; c.classList.add('bump');
+    flush();
+  }
+  function log(sub) {
+    var s = limSnap();
+    addEvent({ id: uuid(), t: Date.now(), sub: sub, mode: state.modes[sub], lt: s.lt, ln: s.ln, la: s.la }, sub);
     var td = state.days[dayKey()];
     try { if (navigator.vibrate) navigator.vibrate(state.limits[sub] > 0 && baseTotal(td, sub) > state.limits[sub] + 1e-9 ? [30, 40, 30] : 10); } catch (e) {}
+  }
+  function logAlc() {
+    var s = limSnap();
+    addEvent({
+      id: uuid(), t: Date.now(), sub: 'alc', mode: state.alc.container,
+      portion: alcUi.portion, ml: containerMl(), abv: effectiveAbv(),
+      lt: s.lt, ln: s.ln, la: s.la
+    }, 'alc');
+    var td = state.days[dayKey()];
+    try { if (navigator.vibrate) navigator.vibrate(state.limits.alc > 0 && td && td.alc.cans > state.limits.alc + 1e-9 ? [30, 40, 30] : 10); } catch (e) {}
+  }
+  function removeEvent(target) {
+    events.splice(events.indexOf(target), 1);
+    delete box.ins[target.id];
+    box.del[target.id] = true;
+    rebuild(); persistCache(); render(); setStatus();
     flush();
   }
   function undo(sub) {
@@ -819,15 +1073,10 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
       if (dayKey(new Date(e.t)) !== tk) break;
       if (e.sub !== sub) continue;
       if (!any) any = e;
-      if (e.mode === mode) { same = e; break; }
+      if (sub === 'alc' || e.mode === mode) { same = e; break; }
     }
     var target = same || any;
-    if (!target) return;
-    events.splice(events.indexOf(target), 1);
-    delete box.ins[target.id];
-    box.del[target.id] = true;
-    rebuild(); persistCache(); render(); setStatus();
-    flush();
+    if (target) removeEvent(target);
   }
   function settingsChanged() {
     box.set = true;
@@ -839,10 +1088,20 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
     if (!b) return;
     var sub = b.closest('.side').getAttribute('data-sub');
     var act = b.getAttribute('data-act');
-    if (act === 'log') log(sub);
+    if (act === 'log') { if (sub === 'alc') logAlc(); else log(sub); }
     else if (act === 'undo') undo(sub);
     else if (act === 'mode') { state.modes[sub] = b.getAttribute('data-mode'); saveModes(); render(); syncInputs(); }
+    else if (act === 'portion') { alcUi.portion = Number(b.getAttribute('data-portion')); saveAlcUi(); render(); }
   });
+  abvInput.addEventListener('input', function () {
+    var raw = abvInput.value.trim();
+    var v = Number(raw);
+    if (raw !== '' && (!isFinite(v) || v <= 0)) return;
+    if (v > MAX_ABV) { abvInput.value = String(MAX_ABV); raw = String(MAX_ABV); }
+    alcUi.abv = raw;
+    saveAlcUi(); render();
+  });
+  abvInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') abvInput.blur(); });
   ORDER.forEach(function (sub) {
     $('limit-' + sub).addEventListener('input', function (e) {
       var v = e.target.value === '' ? 0 : Number(e.target.value);
@@ -856,6 +1115,25 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
       state.ratios[sub] = v;
       settingsChanged(); syncInputs();
     });
+  });
+  $('limit-alc').addEventListener('input', function (e) {
+    var v = e.target.value === '' ? 0 : Number(e.target.value);
+    if (!isFinite(v) || v < 0) return;
+    state.limits.alc = Math.min(999, v);
+    settingsChanged();
+  });
+  $('cont').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-c]');
+    if (!b) return;
+    state.alc.container = b.getAttribute('data-c');
+    settingsChanged(); syncInputs();
+  });
+  $('custom-ml').addEventListener('input', function (e) {
+    var v = Number(e.target.value);
+    if (!isFinite(v) || v <= 0 || v > 5000) return;
+    state.alc.customMl = v;
+    state.alc.container = 'custom';
+    settingsChanged(); syncInputs();
   });
   $('more').addEventListener('click', function () { showAll = true; renderHistory(); });
 
@@ -875,7 +1153,6 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
     events = c ? cleanEvents(c.events) : [];
     box = freshBox();
     if (c && c.box) {
-      box.ins = {}; box.del = {};
       Object.keys(c.box.ins || {}).forEach(function (id) { var e = cleanEvent(c.box.ins[id]); if (e) box.ins[e.id] = e; });
       Object.keys(c.box.del || {}).forEach(function (id) { box.del[id] = true; });
       box.set = !!c.box.set;
@@ -937,7 +1214,7 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
   window.addEventListener('online', function () { if (uid) sync(); });
 
   /* ---------- start ---------- */
-  loadModes();
+  loadLocalUi();
   (async function () {
     if (!window.supabase || !window.supabase.createClient) {
       showAuth('Couldn’t load the sign-in library. Check your connection and reload.');
