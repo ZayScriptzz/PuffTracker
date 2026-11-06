@@ -407,7 +407,8 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
       </div>
       <div class="field">
         <span class="lab"><span class="dot alc"></span>Alcohol</span>
-        <div class="eqrow"><span class="fixed">1 can = 473 ml at 5% &asymp; 1.39 standard drinks</span></div>
+        <div class="eqrow"><span class="fixed" id="alc-eq" aria-live="polite"></span></div>
+        <div class="sub">1 can in your count = 473 ml at 5% &asymp; 1.39 standard drinks</div>
       </div>
       <div class="field">
         <span class="lab"><span class="dot nic"></span>Nicotine</span>
@@ -854,6 +855,15 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
     side.querySelector('.tap').setAttribute('aria-label', 'Log a drink: ' + q('alc', 'hint').textContent.replace('Tap to log ', '') + '. ' + fmt2(a.cans) + ' ' + cansWord(a.cans) + ' today.');
   }
 
+  /* Device equivalents: the selected container at the current ABV, updated live */
+  function renderAlcEq() {
+    var ml = containerMl(), abv = effectiveAbv(), c = state.alc.container;
+    var name = (c === 'custom' ? 'custom' : CONTAINERS[c].label) + ' (' + fmt(ml) + ' ml)';
+    var cans = cansFor(1, ml, abv), std = stdFor(1, ml, abv);
+    $('alc-eq').textContent = '1 ' + name + ' at ' + fmt(abv) + '% = ' + fmt2(cans) + ' ' + cansWord(cans) +
+      ' ≈ ' + fmt(std) + ' ' + stdWord(std);
+  }
+
   function renderHistory() {
     var tk = dayKey();
     var keys = Object.keys(state.days);
@@ -947,6 +957,7 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
     renderedKey = dayKey();
     $('today-date').textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
     renderHero();
+    renderAlcEq();
     renderHistory();
     renderDock();
     if (!tlEl.hidden) renderTimeline();
