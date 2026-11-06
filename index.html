@@ -322,6 +322,12 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
 .tl-what { min-width: 0; overflow-wrap: anywhere; }
 .gap { color: var(--muted); font-size: 0.82rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
+/* ---------- tap animations ---------- */
+.fx { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; opacity: 0; background: #000; }
+.mid { transition: color 0.15s, opacity 0.15s; }
+.side.fxing .mid { position: relative; z-index: 4; color: #fff; opacity: 0.78; text-shadow: 0 1px 10px rgba(0, 0, 0, 0.7); }
+.side.fxing .eq { opacity: 0.8; }
+
 @media (max-width: 900px) {
   .portions { flex-wrap: wrap; }
   .portions .chip { flex: 1 1 calc(50% - 3px); }
@@ -1054,6 +1060,7 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
     box.ins[ev.id] = ev;
     rebuild(); persistCache(); render(); setStatus();
     var c = q(sub, 'count'); c.classList.remove('bump'); void c.offsetWidth; c.classList.add('bump');
+    playFx(sub);
     flush();
   }
   function log(sub) {
@@ -1149,6 +1156,447 @@ input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
     settingsChanged(); syncInputs();
   });
   $('more').addEventListener('click', function () { showAll = true; renderHistory(); });
+
+  /* ---------- tap animations ---------- */
+  var FX_MS = 1000, FADE_IN = 150, FADE_OUT = 230;
+  var TS = 0.6;   /* scene time runs at 0.6x so the 1 s animation flows instead of rushing */
+  var reduceMotion = false;
+  try { reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+  var alcPresses = 0;
+
+  /* seeded random so smoke textures look the same every load */
+  var seedState = 1337;
+  function srand() { seedState = (seedState * 16807) % 2147483647; return (seedState - 1) / 2147483646; }
+  function gauss() { var u = Math.random() || 1e-6, v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(6.2832 * v); }
+  function smooth01(x) { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); }
+  function easeOut(x) { x = Math.max(0, Math.min(1, x)); return 1 - (1 - x) * (1 - x); }
+
+  /* value noise, fbm and curl noise for turbulence */
+  var PERM = new Uint8Array(256), RV = new Float32Array(256);
+  (function () {
+    for (var i = 0; i < 256; i++) { PERM[i] = i; RV[i] = srand(); }
+    for (var j = 255; j > 0; j--) { var k = Math.floor(srand() * (j + 1)), t = PERM[j]; PERM[j] = PERM[k]; PERM[k] = t; }
+  })();
+  function h2(x, y) { return RV[(PERM[x & 255] + y) & 255]; }
+  function vnoise(x, y) {
+    var xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+    var u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+    var a = h2(xi, yi), b = h2(xi + 1, yi), c = h2(xi, yi + 1), d = h2(xi + 1, yi + 1);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+  }
+  function fbm(x, y) { var s = 0, amp = 0.5, f = 1; for (var o = 0; o < 4; o++) { s += amp * vnoise(x * f, y * f); f *= 2; amp *= 0.5; } return s; }
+  function curl(x, y, t) {
+    var e = 0.05;
+    var n1 = vnoise(x + t, y + e), n2 = vnoise(x + t, y - e);
+    var n3 = vnoise(x + e + t, y), n4 = vnoise(x - e + t, y);
+    return [(n1 - n2) / (2 * e), -(n3 - n4) / (2 * e)];
+  }
+
+  /* soft, wispy smoke puff textures, made once */
+  var SPRITES = null;
+  function makeSprites() {
+    if (SPRITES) return;
+    SPRITES = [];
+    for (var s = 0; s < 5; s++) {
+      var S = 96, c = document.createElement('canvas');
+      c.width = c.height = S;
+      var g = c.getContext('2d'), img = g.createImageData(S, S);
+      var ox = s * 17.3, oy = s * 9.7;
+      for (var y = 0; y < S; y++) {
+        for (var x = 0; x < S; x++) {
+          var dx = (x - S / 2) / (S / 2), dy = (y - S / 2) / (S / 2);
+          var r = Math.sqrt(dx * dx + dy * dy);
+          var fall = smooth01(1 - r);
+          var n = fbm(x / 13 + ox, y / 13 + oy);
+          var a = fall * Math.max(0, Math.min(1, (n - 0.18) * 1.9));
+          var i = (y * S + x) * 4;
+          img.data[i] = 236; img.data[i + 1] = 239; img.data[i + 2] = 243; img.data[i + 3] = Math.round(a * 255);
+        }
+      }
+      g.putImageData(img, 0, 0);
+      SPRITES.push(c);
+    }
+  }
+  function sprite() { return SPRITES[(Math.random() * SPRITES.length) | 0]; }
+  function drawPuff(ctx, p, a) {
+    if (a <= 0.002) return;
+    ctx.globalAlpha = Math.min(1, a);
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.r);
+    ctx.drawImage(p.sp, -p.s / 2, -p.s / 2, p.s, p.s);
+    ctx.restore();
+  }
+  /* shared smoke physics: curl-noise turbulence, buoyancy, drag, expansion */
+  function stepPuff(p, dt, t, W, H, opts) {
+    p.age += dt;
+    var c = curl(p.x / (W * 0.22) + p.seed, p.y / (W * 0.22), t * 0.9);
+    var speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+    var turb = W * opts.turb + speed * 1.1;
+    p.vx += c[0] * turb * dt;
+    p.vy += c[1] * turb * dt - H * opts.buoy * dt;
+    var dr = Math.exp(-opts.drag * dt);
+    p.vx *= dr; p.vy *= dr;
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    p.s += p.g * dt;
+    p.r += p.vr * dt;
+  }
+
+  /* THC: one big exhale, a dense jet that slows, billows and rises */
+  function exhaleScene(W, H) {
+    var ps = [], ox = W * 0.5, oy = H * 0.9, emitted = 0, TOTAL = 190, EMIT = 0.3;
+    var opts = { turb: 3.4, buoy: 0.7, drag: 3.1 };
+    function spawn(t) {
+      var e = Math.sin(Math.PI * Math.min(1, t / EMIT));
+      var a = -Math.PI / 2 + gauss() * 0.14;
+      var sp = H * (0.9 + 1.7 * e) * (0.7 + 0.6 * Math.random());
+      ps.push({
+        x: ox + gauss() * W * 0.025, y: oy + gauss() * H * 0.008,
+        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        s: W * (0.09 + 0.07 * Math.random()), g: W * (0.45 + 0.7 * Math.random()),
+        age: 0, life: 0.7 + 0.3 * Math.random(),
+        r: Math.random() * 6.28, vr: (Math.random() - 0.5) * 1.6,
+        al: 0.07 + 0.07 * Math.random(), sp: sprite(), seed: Math.random() * 40
+      });
+    }
+    return {
+      step: function (dt, t) {
+        var target = TOTAL * (1 - Math.cos(Math.PI * Math.min(1, t / EMIT))) / 2;
+        while (emitted < target) { spawn(t); emitted++; }
+        ps.forEach(function (p) { stepPuff(p, dt, t, W, H, opts); });
+      },
+      draw: function (ctx) {
+        ctx.globalCompositeOperation = 'source-over';
+        ps.forEach(function (p) {
+          var k = p.age / p.life;
+          if (k >= 1) return;
+          drawPuff(ctx, p, p.al * 1.6 * Math.min(1, k * 10) * (1 - k * k));
+        });
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+      }
+    };
+  }
+
+  /* Nicotine: three smoke rings, up-left, up, up-right, one at a time, then they drift and dissipate */
+  function ringScene(W, H) {
+    var ox = W * 0.5, oy = H * 0.86, rings = [], wisps = [], made = 0;
+    var DIRS = [-0.5, 0, 0.5], STARTS = [0, 0.085, 0.17];
+    var wispOpts = { turb: 2.0, buoy: 0.4, drag: 5 };
+    function makeRing(i) {
+      var ang = -Math.PI / 2 + DIRS[i], dx = Math.cos(ang), dy = Math.sin(ang);
+      var ring = { cx: ox, cy: oy, vx: dx * H * 1.55, vy: dy * H * 1.55, dx: dx, dy: dy, age: 0, parts: [] };
+      var N = 72;
+      for (var j = 0; j < N; j++) {
+        ring.parts.push({
+          th: j / N * 6.2832 + Math.random() * 0.08, ph: Math.random() * 6.2832, w: 10 + Math.random() * 5,
+          jx: 0, jy: 0, s: W * (0.06 + 0.03 * Math.random()), g: W * 0.14,
+          al: 0.15 + 0.07 * Math.random(), sp: sprite(), r: Math.random() * 6.28, vr: (Math.random() - 0.5) * 2, seed: Math.random() * 40, x: 0, y: 0
+        });
+      }
+      rings.push(ring);
+      for (var k = 0; k < 9; k++) {
+        var a = ang + gauss() * 0.35, sp = H * (0.5 + Math.random() * 0.6);
+        wisps.push({ x: ox, y: oy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, s: W * 0.07, g: W * 0.5, age: 0, life: 0.35 + Math.random() * 0.2,
+          r: Math.random() * 6.28, vr: (Math.random() - 0.5) * 2, al: 0.05 + Math.random() * 0.04, sp: sprite(), seed: Math.random() * 40 });
+      }
+    }
+    return {
+      step: function (dt, t) {
+        while (made < 3 && t >= STARTS[made]) { makeRing(made); made++; }
+        rings.forEach(function (rg) {
+          rg.age += dt;
+          var dr = Math.exp(-3.3 * dt);
+          rg.vx *= dr; rg.vy = rg.vy * dr - H * 0.22 * dt;
+          rg.cx += rg.vx * dt; rg.cy += rg.vy * dt;
+          rg.R = W * (0.04 + 0.17 * (1 - Math.exp(-rg.age * 4.5)));
+          var spread = W * 0.5 * rg.age;     /* the ring loosens as it ages */
+          rg.parts.forEach(function (p) {
+            p.ph += p.w * dt;                 /* smoke rolling around the ring's core */
+            var c = curl(p.th * 2 + p.seed, rg.age * 3, t);
+            p.jx += c[0] * spread * dt; p.jy += c[1] * spread * dt;
+            p.s += p.g * dt; p.r += p.vr * dt;
+          });
+        });
+        wisps.forEach(function (p) { stepPuff(p, dt, t, W, H, wispOpts); });
+      },
+      draw: function (ctx) {
+        ctx.globalCompositeOperation = 'lighter';
+        wisps.forEach(function (p) { var k = p.age / p.life; if (k < 1) drawPuff(ctx, p, p.al * (1 - k)); });
+        rings.forEach(function (rg) {
+          var px = -rg.dy, py = rg.dx, R = rg.R, b = R * 0.36, core = R * 0.2;
+          var k = rg.age / 0.7;
+          var fade = Math.min(1, rg.age * 14) * Math.max(0, 1 - Math.pow(k, 1.6));
+          rg.parts.forEach(function (p) {
+            var ct = Math.cos(p.th), st = Math.sin(p.th);
+            var rx = px * ct + rg.dx * 0.36 * st, ry = py * ct + rg.dy * 0.36 * st;
+            p.x = rg.cx + px * R * ct + rg.dx * b * st + rx * core * Math.cos(p.ph) + rg.dx * core * Math.sin(p.ph) * 0.6 + p.jx;
+            p.y = rg.cy + py * R * ct + rg.dy * b * st + ry * core * Math.cos(p.ph) + rg.dy * core * Math.sin(p.ph) * 0.6 + p.jy;
+            drawPuff(ctx, p, p.al * fade * (st < 0 ? 0.7 : 1));
+          });
+        });
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+      }
+    };
+  }
+
+  /* Alcohol: a poured beer with a sloshing surface, rising bubbles and foam */
+  function beerState(W, H) {
+    var N = 44, b = { N: N, hs: new Float32Array(N + 1), vs: new Float32Array(N + 1), bubbles: [], specks: [], splash: [], bumps: [] };
+    for (var i = 0; i <= N; i++) b.bumps.push(Math.random() * 40);
+    for (var k = 0; k < 90; k++) b.specks.push({ x: Math.random() * W, f: Math.random(), r: 0.5 + Math.random() * 1.1, v: 0.05 + Math.random() * 0.15 });
+    return b;
+  }
+  function stepSurface(b, dt, impactX, impactF, W) {
+    var N = b.N, hs = b.hs, vs = b.vs, sub = 3, h = dt / sub;
+    for (var s = 0; s < sub; s++) {
+      if (impactF > 0) {
+        var i0 = Math.round(impactX / W * N);
+        for (var d = -2; d <= 2; d++) {
+          var i = i0 + d;
+          if (i >= 0 && i <= N) vs[i] -= impactF * (d === 0 ? 1 : d * d === 1 ? 0.6 : 0.25) * h;
+        }
+      }
+      for (var j = 0; j <= N; j++) {
+        var l = hs[j > 0 ? j - 1 : 0], r = hs[j < N ? j + 1 : N];
+        vs[j] += (900 * (l + r - 2 * hs[j]) - 40 * hs[j] - 5 * vs[j]) * h;
+      }
+      for (var m = 0; m <= N; m++) hs[m] += vs[m] * h;
+    }
+  }
+  function surfaceY(st, b, i, W, H) {
+    var x = i / b.N * W;
+    return H - st.level - st.slope * (x - W / 2) - b.hs[i];
+  }
+  function stepBubbles(b, st, dt, t, W, H, spawnN, spawnX) {
+    for (var n = 0; n < spawnN; n++) {
+      b.bubbles.push({ x: spawnX + gauss() * W * 0.06, y: H - Math.random() * Math.max(4, st.level) * 0.9, r: 0.8 + Math.random() * 2.6,
+        vy: -H * (0.25 + Math.random() * 0.5), ph: Math.random() * 6.28, vx: 0 });
+    }
+    b.bubbles.forEach(function (q) {
+      q.y += q.vy * dt; q.ph += dt * 18;
+      q.x += (Math.sin(q.ph) * W * 0.05 + q.vx) * dt;
+      q.vy -= H * 0.6 * dt;
+    });
+    b.bubbles = b.bubbles.filter(function (q) {
+      var i = Math.max(0, Math.min(b.N, Math.round(q.x / W * b.N)));
+      return q.y > surfaceY(st, b, i, W, H) + q.r && q.x > -5 && q.x < W + 5;
+    });
+    b.splash.forEach(function (d) { d.vy += H * 6 * dt; d.x += d.vx * dt; d.y += d.vy * dt; d.age += dt; });
+    b.splash = b.splash.filter(function (d) { return d.age < 0.3 && d.y < H; });
+  }
+  function drawBeer(ctx, W, H, st, b, t) {
+    var N = b.N, pts = [];
+    for (var i = 0; i <= N; i++) pts.push([i / N * W, surfaceY(st, b, i, W, H)]);
+    var anyLiquid = pts.some(function (p) { return p[1] < H - 0.5; });
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    if (anyLiquid) {
+      var path = new Path2D();
+      path.moveTo(0, H);
+      pts.forEach(function (p) { path.lineTo(p[0], Math.min(H, p[1])); });
+      path.lineTo(W, H);
+      path.closePath();
+      var top = Math.min.apply(null, pts.map(function (p) { return p[1]; }));
+      var g = ctx.createLinearGradient(0, top, 0, H);
+      g.addColorStop(0, '#f7b83a'); g.addColorStop(0.35, '#e8921a'); g.addColorStop(1, '#a9520a');
+      ctx.fillStyle = g;
+      ctx.fill(path);
+      ctx.save();
+      ctx.clip(path);
+      var g2 = ctx.createLinearGradient(0, 0, W, 0);
+      g2.addColorStop(0, 'rgba(255, 222, 80, 0.55)'); g2.addColorStop(0.3, 'rgba(255, 196, 60, 0.12)');
+      g2.addColorStop(0.75, 'rgba(0, 0, 0, 0)'); g2.addColorStop(1, 'rgba(90, 35, 0, 0.28)');
+      ctx.fillStyle = g2;
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = 'rgba(95, 42, 0, 0.32)';
+      b.specks.forEach(function (sp) {
+        var y = H - ((sp.f + t * sp.v) % 1) * Math.max(0, st.level + st.slope * (sp.x - W / 2));
+        ctx.beginPath(); ctx.arc(sp.x, y, sp.r, 0, 6.2832); ctx.fill();
+      });
+      b.bubbles.forEach(function (q) {
+        ctx.beginPath(); ctx.arc(q.x, q.y, q.r, 0, 6.2832);
+        ctx.fillStyle = 'rgba(255, 226, 150, 0.3)'; ctx.fill();
+        ctx.strokeStyle = 'rgba(255, 244, 205, 0.75)'; ctx.lineWidth = 0.8; ctx.stroke();
+        ctx.beginPath(); ctx.arc(q.x - q.r * 0.35, q.y - q.r * 0.35, q.r * 0.3, 0, 6.2832);
+        ctx.fillStyle = 'rgba(255, 255, 240, 0.85)'; ctx.fill();
+      });
+      ctx.restore();
+    }
+    /* foam: a creamy head riding on the surface, bubbly where it meets the beer */
+    if (st.foam > 0.5) {
+      var tops = pts.map(function (p, i) {
+        var bump = 0.74 + 0.32 * fbm(i * 0.16 + b.bumps[0] * 0.1, t * 1.6);
+        return [p[0], p[1] - st.foam * bump];
+      });
+      var fp = new Path2D();
+      var started = false;
+      for (var a = 0; a <= N; a++) {
+        if (pts[a][1] >= H - 0.5) continue;
+        if (!started) { fp.moveTo(pts[a][0], Math.min(H, pts[a][1])); started = true; } else fp.lineTo(pts[a][0], Math.min(H, pts[a][1]));
+      }
+      if (started) {
+        for (var z = N; z >= 0; z--) { if (pts[z][1] < H - 0.5) fp.lineTo(tops[z][0], Math.min(H, tops[z][1])); }
+        fp.closePath();
+        var ftop = Math.min.apply(null, tops.map(function (p) { return p[1]; }));
+        var fg = ctx.createLinearGradient(0, ftop, 0, ftop + st.foam * 1.3);
+        fg.addColorStop(0, '#fffdf8'); fg.addColorStop(0.7, '#f6efe0'); fg.addColorStop(1, '#e6d3a8');
+        ctx.fillStyle = fg;
+        ctx.fill(fp);
+        ctx.save();
+        ctx.clip(fp);
+        for (var c = 0; c <= N; c += 1) {
+          if (pts[c][1] >= H - 0.5) continue;
+          for (var q = 0; q < 3; q++) {
+            var bx = pts[c][0] + (vnoise(c * 1.7, q * 3.1) - 0.5) * W / N * 2;
+            var by = pts[c][1] - vnoise(c * 0.9 + q, 7.3) * st.foam * 0.55;
+            var br = 0.8 + vnoise(c * 2.3, q) * 2.6;
+            ctx.beginPath(); ctx.arc(bx, by, br, 0, 6.2832);
+            ctx.strokeStyle = 'rgba(176, 128, 52, 0.38)'; ctx.lineWidth = 0.7; ctx.stroke();
+          }
+        }
+        ctx.restore();
+        ctx.beginPath();
+        var first = true;
+        pts.forEach(function (p) { if (p[1] >= H - 0.5) return; if (first) { ctx.moveTo(p[0], p[1]); first = false; } else ctx.lineTo(p[0], p[1]); });
+        ctx.strokeStyle = 'rgba(160, 95, 20, 0.55)'; ctx.lineWidth = 1.4; ctx.stroke();
+      }
+    }
+    /* the pour: a stream that narrows as it speeds up */
+    if (st.streamBot > st.streamTop + 1) {
+      var sx = st.streamX + Math.sin(t * 38) * W * 0.004;
+      var w0 = W * 0.065, w1 = W * 0.032;
+      var sg = ctx.createLinearGradient(sx - w0, 0, sx + w0, 0);
+      sg.addColorStop(0, '#b8600c'); sg.addColorStop(0.4, '#f6b84a'); sg.addColorStop(0.55, '#fff0b8'); sg.addColorStop(1, '#c0670e');
+      ctx.fillStyle = sg;
+      ctx.beginPath();
+      var steps = 12;
+      for (var u = 0; u <= steps; u++) {
+        var y = st.streamTop + (st.streamBot - st.streamTop) * u / steps;
+        var ww = w0 + (w1 - w0) * (y / H);
+        var wob = Math.sin(y * 0.05 + t * 30) * W * 0.003;
+        if (u === 0) ctx.moveTo(sx - ww / 2 + wob, y); else ctx.lineTo(sx - ww / 2 + wob, y);
+      }
+      for (var v = steps; v >= 0; v--) {
+        var y2 = st.streamTop + (st.streamBot - st.streamTop) * v / steps;
+        var ww2 = w0 + (w1 - w0) * (y2 / H);
+        var wob2 = Math.sin(y2 * 0.05 + t * 30) * W * 0.003;
+        ctx.lineTo(sx + ww2 / 2 + wob2, y2);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.fillStyle = '#f2a83a';
+    b.splash.forEach(function (d) { ctx.globalAlpha = 1 - d.age / 0.3; ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, 6.2832); ctx.fill(); });
+    ctx.globalAlpha = 1;
+  }
+  var BEER_LEVEL = 0.47, BEER_FOAM = 0.085;
+  function settle(b, dt) {
+    var k = Math.exp(-14 * dt);
+    for (var i = 0; i <= b.N; i++) { b.hs[i] *= k; b.vs[i] *= k; }
+  }
+  function pourScene(W, H) {
+    var b = beerState(W, H), sx = W * 0.5;
+    var st = { level: 0, slope: 0, foam: 0, streamTop: 0, streamBot: 0, streamX: sx };
+    var v0 = H * 6, g = H * 40, STOP = 0.3;
+    return {
+      step: function (dt, t) {
+        var head = v0 * t + 0.5 * g * t * t;
+        var tail = t > STOP ? v0 * (t - STOP) + 0.5 * g * (t - STOP) * (t - STOP) : 0;
+        var surf = surfaceY(st, b, Math.round(sx / W * b.N), W, H) - st.foam * 0.3;
+        var hit = head >= surf;
+        st.streamTop = tail;
+        st.streamBot = Math.min(head, surf);
+        st.level = H * BEER_LEVEL * smooth01((t - 0.1) / 0.3);
+        st.foam = H * BEER_FOAM * easeOut((t - 0.14) / 0.3);
+        var pouring = hit && tail < surf;
+        stepSurface(b, dt, sx, pouring ? H * 9 : 0, W);
+        if (t > 0.38) settle(b, dt);
+        stepBubbles(b, st, dt, t, W, H, pouring ? 5 : (t < 0.45 ? 1 : 0), pouring ? sx : Math.random() * W);
+        if (pouring && Math.random() < 0.7) {
+          b.splash.push({ x: sx + gauss() * W * 0.02, y: surf, vx: gauss() * W * 0.8, vy: -H * (0.5 + Math.random() * 0.8), r: 1 + Math.random() * 1.8, age: 0 });
+        }
+      },
+      draw: function (ctx, t) { drawBeer(ctx, W, H, st, b, t); }
+    };
+  }
+  /* Every press after the first: the glass tips to a fixed 45 degrees for a sip.
+     All the liquid stays inside the button; only its orientation changes, then it levels out again. */
+  function chugScene(W, H) {
+    var b = beerState(W, H);
+    var L0 = H * BEER_LEVEL, F0 = H * BEER_FOAM, TILT = 1;   /* tan 45 = 1 */
+    var st = { level: L0, slope: 0, foam: F0, streamTop: 0, streamBot: 0, streamX: 0 };
+    var area = W * L0, lastS = 0;
+    for (var k = 0; k < 40; k++) b.bubbles.push({ x: Math.random() * W, y: H - Math.random() * L0 * 0.9, r: 0.8 + Math.random() * 2.2, vy: -H * 0.3, ph: Math.random() * 6.28, vx: 0 });
+    function levelFor(sl) {   /* keep the same amount of beer at any tilt, clipped to the button */
+      var lo = -H - sl * W, hi = 2 * H + sl * W;
+      for (var it = 0; it < 28; it++) {
+        var m = (lo + hi) / 2, A = 0, n = 48;
+        for (var i = 0; i < n; i++) { var x = (i + 0.5) / n * W; A += Math.max(0, Math.min(H, m + sl * (x - W / 2))) * W / n; }
+        if (A > area) hi = m; else lo = m;
+      }
+      return (lo + hi) / 2;
+    }
+    return {
+      step: function (dt, t) {
+        var sl;
+        if (t < 0.14) sl = TILT * smooth01(t / 0.14);
+        else if (t < 0.3) sl = TILT;
+        else sl = TILT * (1 - smooth01((t - 0.3) / 0.14));
+        var ds = sl - lastS;
+        lastS = sl;
+        if (t < 0.3) {
+          for (var i = 0; i <= b.N; i++) b.vs[i] -= ds * (i / b.N - 0.5) * H * 1.4;   /* slosh as it tips */
+        } else {
+          settle(b, dt);   /* level out cleanly, no second dip */
+        }
+        st.slope = sl;
+        st.level = levelFor(sl);
+        b.bubbles.forEach(function (q) { q.vx = sl * W * 0.25; });
+        stepSurface(b, dt, 0, 0, W);
+        stepBubbles(b, st, dt, t, W, H, 1, Math.random() * W);
+      },
+      draw: function (ctx, t) { drawBeer(ctx, W, H, st, b, t); }
+    };
+  }
+
+  function playFx(sub) {
+    if (reduceMotion) return;
+    var side = split.querySelector('.side.' + sub);
+    if (!side) return;
+    makeSprites();
+    var f = side.__fx;
+    if (!f) {
+      var cv = document.createElement('canvas');
+      cv.className = 'fx';
+      cv.setAttribute('aria-hidden', 'true');
+      side.appendChild(cv);
+      f = side.__fx = { canvas: cv, ctx: cv.getContext('2d'), raf: 0 };
+    }
+    cancelAnimationFrame(f.raf);
+    var rect = side.getBoundingClientRect();
+    var W = rect.width, H = rect.height, dpr = Math.min(2, window.devicePixelRatio || 1);
+    f.canvas.width = Math.round(W * dpr);
+    f.canvas.height = Math.round(H * dpr);
+    var ctx = f.ctx;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var scene = sub === 'thc' ? exhaleScene(W, H) : sub === 'nic' ? ringScene(W, H) : (alcPresses++ === 0 ? pourScene(W, H) : chugScene(W, H));
+    var t0 = performance.now(), last = t0;
+    side.classList.add('fxing');
+    function frame(now) {
+      var ms = now - t0, t = ms / 1000 * TS, dt = Math.min(1 / 30, Math.max(0, (now - last) / 1000)) * TS;
+      last = now;
+      if (ms > FX_MS - FADE_OUT) side.classList.remove('fxing');
+      f.canvas.style.opacity = ms < FADE_IN ? ms / FADE_IN : ms > FX_MS - FADE_OUT ? Math.max(0, (FX_MS - ms) / FADE_OUT) : 1;
+      ctx.clearRect(0, 0, W, H);
+      scene.step(dt, t);
+      scene.draw(ctx, t);
+      if (ms < FX_MS) f.raf = requestAnimationFrame(frame);
+      else { f.canvas.style.opacity = 0; ctx.clearRect(0, 0, W, H); side.classList.remove('fxing'); }
+    }
+    f.raf = requestAnimationFrame(frame);
+  }
 
   /* ---------- sign in and out ---------- */
   function showAuth(msg) {
